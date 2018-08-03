@@ -93,7 +93,7 @@
 				case 'ipv4':
 					return (filter_var($value, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false);
 				case 'ipv6':
-					return (filter_var($value, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false);
+					return (filter_var($value, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false);
 				default:
 					throw new Exception('Test impossible pour ['.$model.']', E_USER_ERROR);
 			}
