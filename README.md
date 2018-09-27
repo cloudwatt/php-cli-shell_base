@@ -3,14 +3,17 @@
 This repository is the base of PHP Shell project. It contains base classes for create a PHP Shell.  
 You must have a service which has an API and develop classes to use PHP-CLI Shell and your API.  
   
-There is two project which use PHP-CLI Shell:
+There is three projects which use PHP-CLI Shell:
 - PHPIPAM: https://github.com/cloudwatt/php-cli-shell_phpipam
 - PATCHMANAGER: https://github.com/cloudwatt/php-cli-shell_patchmanager
+- FIREWALL: https://github.com/cloudwatt/php-cli-shell_firewall
 
 PHPIPAM is an IPAM in PHP with REST API: https://phpipam.net/  
-PATCHMANAGER is an DCIM in JAVA with SOAP and REST API: https://patchmanager.com/
+PATCHMANAGER is an DCIM in JAVA with SOAP and REST API: https://patchmanager.com/  
+FIREWALL is an ACL manager with firewall appliance templating.  
+*FIREWALL service can use PHPIPAM API for autocompletion objects.*  
 
-You can use one of this two projects for help you to develop your own project.
+You can use one of this three projects for help you to develop your own project.
 
 
 # INSTALLATION
@@ -23,4 +26,4 @@ __*https://launchpad.net/~ondrej/+archive/ubuntu/php*__
 
 #### REPOSITORY
 * git clone https://github.com/cloudwatt/php-cli-shell_base
-* git checkout tags/v1.0
+* git checkout tags/v1.1

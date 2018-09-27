@@ -314,30 +314,7 @@
 								Tools::e(PHP_EOL.'DEBUG [AUTOCOMPLETION] '.__LINE__.' [SYS] {info}:'.PHP_EOL.'COMMAND IS INCOMPLETE', 'orange');
 							}
 
-							foreach($results as $i => $result)
-							{
-								if($i === 0) {
-									$baseCmdPart = str_split($result);
-								}
-								else
-								{
-									foreach(str_split($result) as $i => $letter)
-									{
-										if(!isset($baseCmdPart[$i])) {
-											break;
-										}
-										elseif($baseCmdPart[$i] !== $letter) {
-											array_splice($baseCmdPart, $i);
-										}
-									}
-
-									if($i < count($baseCmdPart)-1) {
-										array_splice($baseCmdPart, $i+1);
-									}
-								}
-							}
-
-							$cmdPart = implode('', $baseCmdPart);
+							$cmdPart = Tools::crossSubStr($results);
 							$this->_results = $results;
 
 							if($this->_debug) {
@@ -411,55 +388,42 @@
 			}
 
 			/**
-			  * On ne doit pas autoriser l'ajout d'arguments tant que la commande n'est pas complète
-			  * Donc si on arrive sur une commande finale, alors on traite les arguments inline et outline
+			  * On ne doit pas autoriser l'ajout d'arguments tant que la commande n'est pas indiquée disponible et complète
+			  * Donc si et seulement si on arrive sur une commande existante et finale, alors on traite les arguments inline et outline
 			  *
 			  * ls mon/chemin/a/lister
 			  * cd mon/chemin/ou/aller
 			  * find ou/lancer/ma/recherche
 			  */
-			if($cmdIsComplete)
+			if($cmdIsAvailable && $cmdIsComplete)
 			{
+				/**
+				  * On ne traite les arguments inline et outline si et seulement si on n'a pas de multiple choix sur la commande
+				  * Lorsque la commande sera disponible et complète alors on peut traiter les arguments mais pas avant
+				  * Ceci est un test de sécurité, mais normalement on ne devrait jamais avoir d'exception pour ce cas
+				  */
+				if(count($this->_results) > 0) {
+					throw new Exception("Command is available and complete but there is many results/choices", E_USER_ERROR);
+				}
+
 				if(array_key_exists($cmd, $this->_defInlineArgs) && (count($unknow) > 0 || count($this->_inlineArgs) > 0))
 				{
 					$this->_inlineArgs = array_merge($unknow, $this->_inlineArgs);
-					$inlineArgs = implode(' ', $this->_inlineArgs);
+					$this->_results = $this->_getAllArguments($cmd, $this->_defInlineArgs, $this->_inlineArgs, $this->_arguments);
 
-					if(Tools::is('array', $this->_defInlineArgs[$cmd]))
-					{
-						if(count($this->_results) === 0)
-						{
-							$this->_results = $this->_getAllArguments($cmd, $this->_defInlineArgs, $this->_inlineArgs, $this->_arguments);
-
-							if($this->_debug) {
-								$debug = print_r($this->_results, true);
-								Tools::e(PHP_EOL.'DEBUG [AUTOCOMPLETION] '.__LINE__.' [RESULTS] {inlineArgs autocompletion}:'.PHP_EOL.$debug, 'orange');
-							}
-						}
-					}
-					elseif(preg_match($this->_defInlineArgs[$cmd], $inlineArgs)) {
-						$this->_arguments = array_merge($this->_inlineArgs, $this->_arguments);			// /!\ inline + empty
+					if($this->_debug) {
+						$debug = print_r($this->_results, true);
+						Tools::e(PHP_EOL.'DEBUG [AUTOCOMPLETION] '.__LINE__.' [RESULTS] {inlineArgs autocompletion}:'.PHP_EOL.$debug, 'orange');
 					}
 				}
 
 				if(array_key_exists($cmd, $this->_defOutlineArgs) && count($this->_outlineArgs) > 0)
 				{
-					$outlineArgs = implode(' ', $this->_outlineArgs);
+					$this->_results = $this->_getAllArguments($cmd, $this->_defOutlineArgs, $this->_outlineArgs, $this->_arguments);
 
-					if(Tools::is('array', $this->_defOutlineArgs[$cmd]))
-					{
-						if(count($this->_results) === 0)
-						{
-							$this->_results = $this->_getAllArguments($cmd, $this->_defOutlineArgs, $this->_outlineArgs, $this->_arguments);
-
-							if($this->_debug) {
-								$debug = print_r($this->_results, true);
-								Tools::e(PHP_EOL.'DEBUG [AUTOCOMPLETION] '.__LINE__.' [RESULTS] {outlineArgs autocompletion}:'.PHP_EOL.$debug, 'orange');
-							}
-						}
-					}
-					elseif(preg_match($this->_defOutlineArgs[$cmd], $outlineArgs)) {
-						$this->_arguments = array_merge($this->_arguments, $this->_outlineArgs);			// /!\ inline + outline
+					if($this->_debug) {
+						$debug = print_r($this->_results, true);
+						Tools::e(PHP_EOL.'DEBUG [AUTOCOMPLETION] '.__LINE__.' [RESULTS] {outlineArgs autocompletion}:'.PHP_EOL.$debug, 'orange');
 					}
 				}
 
@@ -500,7 +464,7 @@
 				{
 					if($cmdPart === "" || preg_match('#^('.preg_quote($cmdPart, "#").')'.$endFlag.'#i', $commandKey))
 					{
-						$cmds[] = $commandKey;
+						$cmds[$commandKey] = $commandKey;
 						$cmdKey = $commandKey;
 
 						/**
@@ -518,7 +482,7 @@
 				elseif(!$forceKey && Tools::is('string', $commandValue))
 				{				
 					if($cmdPart === "" || preg_match('#^('.preg_quote($cmdPart, "#").')'.$endFlag.'#i', $commandValue)) {
-						$cmds[] = $commandValue;
+						$cmds[$commandKey] = $commandValue;
 						$cmdKey = $commandKey;
 					}
 				}
@@ -542,57 +506,102 @@
 					}
 					else {
 						natcasesort($cmds);
-						$cmds = array_values($cmds); // /!\ Reindexe correctement
 						// /!\ Ne pas appliquer array_unique, voir #0.1
 					}
 				}
 			}
 			// ----------------------------
 
+			$cmds = array_values($cmds);	// /!\ Reindexe correctement et sans les clés
+			// /!\ Ne pas appliquer array_unique, voir #0.1
 			return $cmds;
 		}
 
 		protected function _getAllArguments($cmd, $defArgs, $userArgs, &$argsFiltered)
 		{
 			$argsAvailable = array();
+			$defArg = $defArgs[$cmd];
 
-			foreach($userArgs as $index => $userArg)
+			if(Tools::is('string', $defArg))
 			{
-				if(isset($defArgs[$cmd][$index]))
+				$_userArgs = implode(' ', $userArgs);
+
+				if(preg_match($defArg, $_userArgs)) {
+					$argsFiltered = array_merge($argsFiltered, $userArgs);
+					// /!\ Priorité à ce qui existe déjà dans $argsFiltered
+				}
+			}
+			else
+			{
+				$defArg = (array) $defArg;
+
+				foreach($userArgs as $index => $userArg)
 				{
-					$defArg = $defArgs[$cmd][$index];
-
-					if(Tools::is('array', $defArg))
+					if(isset($defArg[$index]))
 					{
-						$results = preg_grep('#^('.preg_quote($userArg, '#').')#i', $defArg);
-						$results = array_values($results);
-						$resultsCounter = count($results);
+						$_DefArg = $defArg[$index];
 
-						if($resultsCounter === 0) {
-							$argsAvailable = $defArg;
+						if(Tools::is('string&&!empty', $userArg))
+						{
+							if(Tools::is('string', $_DefArg))
+							{
+								if(preg_match($_DefArg, $userArg)) {
+									$argsFiltered[] = $userArg;
+									continue;
+								}
+							}
+							else
+							{
+								if($_DefArg instanceof Closure) {
+									$results = $_DefArg($userArg);
+								}
+								elseif(Tools::is('array', $_DefArg))
+								{
+									switch(count($_DefArg))
+									{
+										case 0:
+											// actions par défaut
+											break;
+										case 1:
+											$results = $_DefArg;
+											break;
+										default:
+											$results = preg_grep('#^('.preg_quote($userArg, '#').')#i', $_DefArg);
+									}
+								}
+								else {
+									continue;
+								}
+
+								$resultsCounter = count($results);
+
+								if($resultsCounter === 1) {
+									$argsFiltered[] = current($results);					// /!\ Index 0 incertain
+									continue;
+								}
+								elseif($resultsCounter > 1) {
+									natcasesort($results);									// /!\ Correspondance key/value conservée
+									$results = array_values($results);						// Pour que argsAvailable soit propre
+									$userArg = Tools::crossSubStr($results, $userArg);
+									$argsFiltered[] = $userArg;
+									$argsAvailable = $results;
+									break;
+								}
+							}
+						}
+
+						// Actions par défaut !
+						// --------------------
+						// On propose à l'utilisateur la liste des arguments disponibles
+						if(Tools::is('array&&count>0', $_DefArg)) {
+							$argsAvailable = $_DefArg;
+						}
+
+						// On rajoute l'argument de l'utilisateur seulement si ce n'est pas vide
+						if(Tools::is('string&&!empty', $userArg)) {
 							$argsFiltered[] = $userArg;
-							break;
 						}
-						elseif($resultsCounter === 1) {
-							$argsFiltered[] = $results[0];
-						}
-						elseif(in_array($userArg, $results, true)) {
-							$argsFiltered[] = $userArg;
-						}
-						else {
-							$argsFiltered[] = $userArg;
-							$argsAvailable = $results;
-							break;
-						}
-					}
-					else
-					{
-						if(preg_match($defArg, $userArg)) {
-							$argsFiltered[] = $userArg;
-						}
-						else {
-							break;
-						}
+						// --------------------
 					}
 				}
 			}

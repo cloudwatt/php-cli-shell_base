@@ -1,6 +1,6 @@
 <?php
-	include_once('cli.php');
-	include_once('autocompletion.php');
+	require_once('cli.php');
+	require_once('autocompletion.php');
 
 	abstract class Shell_Abstract
 	{
@@ -40,6 +40,10 @@
 
 		public function setHistoryFilename($filename)
 		{
+			if(strpos($filename, '/') === false && defined('ROOT_DIR')) {
+				$filename = ROOT_DIR.'/'.$filename;
+			}
+
 			if(!file_exists($filename) || (is_readable($filename) && is_writable($filename))) {
 				$this->_historyFilename = $filename;
 				return $this;
@@ -65,6 +69,12 @@
 				$this->_shPrompt = '';
 			}
 
+			return $this;
+		}
+
+		public function resetShellPrompt()
+		{
+			$this->setShellPrompt();
 			return $this;
 		}
 
@@ -221,69 +231,81 @@
 						}
 						case "?":
 						case "\t":
+						case "\x9":		// tab
 						{
 							$status = $this->_Shell_Autocompletion->_($cmd);
 
 							$cmd = $this->_Shell_Autocompletion->command;
 							$args = $this->_Shell_Autocompletion->arguments;
-							$cmds = $this->_Shell_Autocompletion->commands;
+							$results = $this->_Shell_Autocompletion->results;		// CMD || ARG
 //var_dump($cmd);
 //var_dump($args);
-//var_dump($cmds);
+//var_dump($results);
 							if($status === false) {
 								$this->_print('None command found', 'red');
 							}
 							else
 							{
-								$cmdsCount = count($cmds);
+								$resultsCount = count($results);
 
 								// ID #0
-								if($cmdsCount === 0)
-								{
-									if($c === "?") {
-										$msg = $this->_Shell_Cli->getManCmd($cmd);
-										$this->_print($msg, 'green');
-									}
-									else {
-										$this->_print($cmd, 'green');
-									}
-
-									if(Tools::is('array&&count>0', $args)) {
-										$cmd .= ' '.implode(' ', $args);
-									}
-								}
-								// ID #1
-								elseif($cmdsCount === 1)
+								if($resultsCount === 0)
 								{
 									if($c === "?")
 									{
-										$msg = $this->_Shell_Cli->getManMsg($cmds, $cmd);
+										$msg = $this->_Shell_Cli->getManCmd($cmd);
 
 										if(Tools::is('string&&!empty', $msg)) {
 											$this->_print($msg, 'cyan');
 										}
 									}
 
-									$cmd .= current($cmds);
+									if(Tools::is('array&&count>0', $args)) {
+										$cmd .= ' '.implode(' ', $args);
+									}
+
+									if($c === "\t") {
+										$this->_print($cmd, 'green');
+									}
+								}
+								// ID #1
+								elseif($resultsCount === 1)
+								{
+									if($c === "?")
+									{
+										$msg = $this->_Shell_Cli->getManMsg($results, $cmd);
+
+										if(Tools::is('string&&!empty', $msg)) {
+											$this->_print($msg, 'cyan');
+										}
+									}
+
+									if(Tools::is('array&&count>0', $args)) {
+										$cmd .= ' '.implode(' ', $args);
+									}
+
+									$cmd .= ' '.current($results);
 								}
 								// ID #2
 								else
 								{
-									if($c === "?") {
-										$msg = $this->_Shell_Cli->getManMsg($cmds, $cmd);
-									}
-									else {
-										$msg = implode(self::SHELL_SPACER, array_unique($cmds));
+									$msg = ($c === "?") ? ($this->_Shell_Cli->getManMsg($results, $cmd)) : ('');
+
+									if(!Tools::is('string&&!empty', $msg)) {
+										$msg = implode(self::SHELL_SPACER, array_unique($results));
 									}
 
-									if(Tools::is('string&&!empty', $msg)) { 
-										$this->_print($msg, 'cyan');
-									}
+									$this->_print($msg, 'cyan');
 
 									if($this->_Shell_Autocompletion->cmdIsComplete)
 									{
-										if(Tools::is('array&&count>0', $args)) {
+										if(Tools::is('array&&count>0', $args))
+										{
 											$cmd .= ' '.implode(' ', $args);
+
+											if(in_array(end($args), $results, true)) {
+												$this->_print($cmd, 'green');
+											}
 										}
 									}
 								}
@@ -300,18 +322,29 @@
 							$cmd = $this->_Shell_Autocompletion->command;
 							$args = $this->_Shell_Autocompletion->arguments;
 
+							/**
+							  * Dans certains cas, un espace peut être autocomplété à la fin de la commande afin de faciliter à l'utilisateur la CLI.
+							  * Exemple: show => array('host', 'subnet') --> "show " afin que l'utilisateur puisse poursuivre la commande
+							  *
+							  * Cependant, si l'on souhaite autoriser "show" comme commande valide alors il faut nettoyer l'autocompletion
+							  */
+							$cmd = rtrim($cmd, ' ');
+
 							// Si on ne souhaite garder que les commandes valides: if($status)
 							$this->_setHistoryLine($cmd.' '.implode(' ', $args));
 
 							$this->_end();
+							echo PHP_EOL;
 
 							return array(0 => $cmd, 1 => $args, 'command' => $cmd, 'arguments' => $args);
 						}
 						default:
 						{
-							if(preg_match("%[a-z0-9_\- /\"'.~#*]+%i", $c))
+							// /!\ Penser à modifier $charAllowed dans le else
+							if(preg_match("<^([a-z0-9_\-\"'~#*+()@%\[\]?,.;/:! \t]+)$>i", $c))
 							{
 								$cmdLen = mb_strlen($cmd);
+								$c = str_replace("\t", "", $c);
 
 								if($cmdLen === $this->_position) {
 									$cmd .= $c;
@@ -324,6 +357,11 @@
 								else {
 									throw new Exception("Positionnement incorrect", E_USER_ERROR);
 								}
+							}
+							else {
+								$charAllowed = "a-z0-9_-\"'~#*+()@%[]?,.;/:! ";
+								$this->_print("Caractères autorisés '".$charAllowed."'", 'orange');
+								$this->_printPrompt($cmd);
 							}
 						}
 					}
@@ -504,8 +542,8 @@
 
 		protected function _clear()
 		{
-			echo "\033[2J";		// Supprime tout ce qui est à l'écran
-			echo "\033[1;1f";	// Déplace le curseur en haut à gauche
+			echo "\033[2J";			// Supprime tout ce qui est à l'écran
+			echo "\033[1;1f";		// Déplace le curseur en haut à gauche
 
 			$this->_position = 0;
 			$this->_updatePrompt();
@@ -519,23 +557,32 @@
 			return $this;
 		}
 
-		public function updateMessage($message)
+		public function insertMessage($message)
 		{
-			echo "\033[2K";
-			echo "\033[1G";
 			Tools::e($message);
 			return $this;
 		}
 
-		public function deleteMessage($lineToDelete = 1)
+		public function updateMessage($message)
+		{
+			echo "\033[2K";			// Supprime tout sur la ligne courante
+			echo "\033[1G";			// Déplace le curseur au debut de la ligne
+			Tools::e($message);
+			return $this;
+		}
+
+		public function deleteMessage($lineToDelete = 1, $lineUP = false)
 		{
 			for($i=0; $i<$lineToDelete; $i++)
 			{
-				echo "\033[2K";		// Supprime tout sur la ligne courante
-				echo "\033[1G";		// Déplace le curseur au debut de la ligne
+				echo "\033[2K";			// Supprime tout sur la ligne courante
 
-				if($i<($lineToDelete-1)) {
-					echo "\033[1A";
+				if($i < ($lineToDelete-1) || $lineUP) {
+					echo "\033[1A";		// Déplace le curseur d'une ligne vers le haut
+					// /!\ La commande pour se déplacer en fin de ligne n'existe pas
+				}
+				else {
+					echo "\033[1G";		// Déplace le curseur au debut de la ligne
 				}
 			}
 

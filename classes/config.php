@@ -1,5 +1,5 @@
 <?php
-	include_once(__DIR__ . '/arrayObject.php');
+	require_once(__DIR__ . '/arrayObject.php');
 
 	class CONFIG implements IteratorAggregate
 	{
@@ -11,53 +11,69 @@
 		private $_position = 0;
 
 
-		private function __construct($filename)
+		private function __construct()
 		{
 			$this->_filename = array();
 			$this->_configuration = new MyArrayObject();
-
-			$status = $this->_readConfig($filename);
-
-			if(!$status) {
-				throw new Exception("Config file does not exist or is not readable", E_USER_ERROR);
-			}
 		}
 
-		private function _readConfig($filename)
+		private function _readConfig($filename, $fileMissingError = true)
 		{
-			if(file_exists($filename) && is_readable($filename))
+			if(file_exists($filename))
 			{
-				if(!in_array($filename, $this->_filename, true))
+				if(is_readable($filename))
 				{
-					$this->_filename[] = $filename;
-					$json = file_get_contents($filename);
-					$configuration = json_decode($json, true);
-					$this->_configuration->merge_recursive($configuration);
-				}
+					if(!in_array($filename, $this->_filename, true))
+					{
+						$this->_filename[] = $filename;
+						$json = file_get_contents($filename);
+						$configuration = json_decode($json, true);
 
-				return true;
+						if($configuration === null) {
+							throw new Exception("Configuration '".$filename."' is not a valid JSON", E_USER_ERROR);
+						}
+
+						$this->_configuration->replace_recursive($configuration);
+					}
+				}
+				else {
+					throw new Exception("Configuration '".$filename."' is not readable", E_USER_ERROR);
+				}
+			}
+			elseif($fileMissingError) {
+				throw new Exception("Configuration '".$filename."' does not exist", E_USER_ERROR);
 			}
 			else {
 				return false;
 			}
+
+			return true;
 		}
 
 		public static function getInstance($filename = null)
 		{
-			if(self::$_instance === null)
-			{
-				if($filename !== null) {
-					self::$_instance = new self($filename);
-				}
-				else {
-					throw new Exception("Config filename argument is null", E_USER_ERROR);
-				}
+			if(self::$_instance === null) {
+				self::$_instance = new self();
 			}
-			else {
-				self::$_instance->_readConfig($filename);
+
+			if($filename !== null) {
+				self::loadConfigurations($filename);
 			}
 
 			return self::$_instance;
+		}
+
+		public static function loadConfigurations($filenames, $fileMissingError = true)
+		{
+			$status = true;
+			$filenames = (array) $filenames;
+
+			foreach($filenames as $filename) {
+				$_status = self::$_instance->_readConfig($filename, $fileMissingError);
+				$status = $status && $_status;
+			}
+
+			return $status;
 		}
 
 		public function getIterator()
