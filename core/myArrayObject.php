@@ -1,5 +1,9 @@
 <?php
-	class MyArrayObject implements Iterator, ArrayAccess, Countable
+	namespace Core;
+
+	use ArrayObject;
+
+	class MyArrayObject implements \Iterator, \ArrayAccess, \Countable
 	{
 		protected $_array;
 
@@ -85,12 +89,12 @@
 
 		public function offsetExists($offset)
 		{
-			return isset($this->_array[$offset]);
+			return isset($this->{$offset});
 		}
 
 		public function offsetUnset($offset)
 		{
-			unset($this->_array[$offset]);
+			unset($this->{$offset});
 		}
 
 		public function offsetGet($offset)
@@ -121,6 +125,8 @@
 
 		protected function _toArray($input, $recursive = false)
 		{
+			// @todo coder $recursive
+
 			/**
 			  * Ne pas utiliser de référence foreach($input as &$array) sinon:
 			  * Uncaught Error: An iterator cannot be used with foreach by reference
@@ -166,7 +172,8 @@
 
 		public function __isset($name)
 		{
-			return array_key_exists($name, $this->_array);
+			return $this->key_exists($name);
+			//return array_key_exists($name, $this->_array);
 		}
 
 		public function __unset($name)
@@ -182,6 +189,11 @@
 			else {
 				throw new Exception("This attribute ".$name." does not exist", E_USER_ERROR);
 			}
+		}
+
+		public function __set($name, $value)
+		{
+			$this->_array[$name] = $value;
 		}
 
 		public function debug()

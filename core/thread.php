@@ -1,4 +1,9 @@
 <?php
+	namespace Core;
+
+	use Thread;
+	use Threaded;
+
 	class MyThread extends Thread
 	{
 		protected $_object;

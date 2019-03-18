@@ -1,10 +1,28 @@
 <?php
-	class Shell_Cli
+	namespace Cli\Terminal;
+
+	use Core as C;
+
+	class Console
 	{
+		/**
+		  * @var array
+		  */
 		protected $_commands = null;
+
+		/**
+		  * @var array
+		  */
 		protected $_manCommands = null;
+
+		/**
+		  * @var string
+		  */
 		protected $_helpMessage = null;
 
+		/**
+		  * @var bool
+		  */
 		protected $_debug = false;
 
 
@@ -12,6 +30,33 @@
 		{
 			$this->_commands = $commands;
 			$this->_manCommands = $manCommands;
+		}
+
+		protected function _getConsoleSize()
+		{
+			$sttyCommand = 'stty -a';
+			exec($sttyCommand, $outputs, $status);
+
+			if($status === 0 && count($outputs) >= 1)
+			{
+				if(preg_match('#rows (?<rows>[0-9]+); columns (?<columns>[0-9]+);#i', $outputs[0], $matches)) {
+					return $matches;
+				}
+			}
+
+			return false;
+		}
+
+		public function getRows()
+		{
+			$consoleSize = $this->_getConsoleSize();
+			return ($consoleSize !== false) ? ($consoleSize['rows']) : (false);
+		}
+
+		public function getColumns()
+		{
+			$consoleSize = $this->_getConsoleSize();
+			return ($consoleSize !== false) ? ($consoleSize['columns']) : (false);
 		}
 
 		public function getCommands()
@@ -42,10 +87,10 @@
 
 				foreach($cmds as $cmdKey => $cmdValue)
 				{				
-					$cmd = (Tools::is('array', $cmdValue)) ? ($cmdKey) : ($cmdValue);
+					$cmd = (C\Tools::is('array', $cmdValue)) ? ($cmdKey) : ($cmdValue);
 
 					// /!\ Shell "> ?" va transmettre cmdPrefix vide
-					if(Tools::is('string&&!empty', $cmdPrefix)) {
+					if(C\Tools::is('string&&!empty', $cmdPrefix)) {
 						$cmd = $cmdPrefix.' '.$cmd;
 					}
 						

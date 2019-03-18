@@ -1,7 +1,7 @@
 <?php
-	require_once(__DIR__ . '/arrayObject.php');
+	namespace Core;
 
-	class CONFIG implements IteratorAggregate
+	class Config implements \IteratorAggregate
 	{
 		private static $_instance;
 

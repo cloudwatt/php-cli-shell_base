@@ -19,11 +19,19 @@ You can use one of this three projects for help you to develop your own project.
 # INSTALLATION
 
 #### APT PHP
+Ubuntu only, you can get last PHP version from this PPA:  
 __*https://launchpad.net/~ondrej/+archive/ubuntu/php*__
 * add-apt-repository ppa:ondrej/php
-* apt-get update
-* apt install php7.1-cli php7.1-mbstring php7.1-readline
+* apt update
+
+You have to install a PHP version >= 7.1:
+* apt update
+* apt install php7.2-cli php7.2-soap php7.2-mbstring php7.2-readline php7.2-curl
 
 #### REPOSITORY
 * git clone https://github.com/cloudwatt/php-cli-shell_base
-* git checkout tags/v1.1
+* git checkout tags/v2.0
+
+#### ADDON
+*Be careful, you have to install the same version of the addon as base version*  
+Follow the addon README to install the addon
