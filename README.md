@@ -25,8 +25,16 @@ __*https://launchpad.net/~ondrej/+archive/ubuntu/php*__
 * apt update
 
 You have to install a PHP version >= 7.1:
-* apt update
-* apt install php7.2-cli php7.2-soap php7.2-mbstring php7.2-readline php7.2-curl
+* apt install php7.3-cli php7.3-soap php7.3-mbstring php7.3-readline php7.3-curl
+
+For MacOS users which use PHP 7.3, there is an issue with PCRE.
+You have to add this configuration in your php.ini:
+```ini
+pcre.jit=0
+```
+
+For more information about PCRE configuration:
+- https://php.net/manual/en/pcre.configuration.php#ini.pcre.jit
 
 #### REPOSITORY
 * git clone https://github.com/cloudwatt/php-cli-shell_base
@@ -35,6 +43,6 @@ You have to install a PHP version >= 7.1:
 #### ADDON / APPLICATION
 *Be careful, you have to install the same version of the addon or application as base version*  
 Follow the addon README to install the addon or application:
-- PHPIPAM: https://github.com/cloudwatt/php-cli-shell_phpipam/README.md
-- PATCHMANAGER: https://github.com/cloudwatt/php-cli-shell_patchmanager/README.md
-- FIREWALL: https://github.com/cloudwatt/php-cli-shell_firewall/README.md
+- PHPIPAM: https://github.com/cloudwatt/php-cli-shell_phpipam
+- PATCHMANAGER: https://github.com/cloudwatt/php-cli-shell_patchmanager
+- FIREWALL: https://github.com/cloudwatt/php-cli-shell_firewall
