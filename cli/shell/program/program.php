@@ -42,6 +42,10 @@
 		{
 			if($items !== false && C\Tools::is('array&&count>0', $items))
 			{
+				if($this->_SHELL->isOneShotCall()) {
+					return true;
+				}
+
 				$results = array();
 
 				if($title === false)
@@ -107,11 +111,15 @@
 					}
 				}
 
-				$this->_RESULTS->append($results);
 				$this->_SHELL->EOL();
 				return true;
 			}
-			else {
+			else
+			{
+				if($this->_SHELL->isOneShotCall()) {
+					return false;
+				}
+
 				$this->_SHELL->error("Aucun élément à afficher", 'orange');
 			}
 
@@ -133,7 +141,8 @@
 			{
 				foreach($cases as $type => $method)
 				{
-					$objects = call_user_func(array($this, $method), $args[0], $fromCurrentContext);
+					$callable = array($this, $method);
+					$objects = call_user_func($callable, $args[0], $fromCurrentContext);
 
 					if(count($objects) > 0) {
 						$objectType = $type;
@@ -165,8 +174,12 @@
 		  * Récupère les informations de l'ensemble des éléments ou des objets
 		  *
 		  * @todo optimiser garder en cache en fonction de context
+		  *
+		  * @param string $context Context/path where retrieve objects
+		  * @param array $args Arguments from commands (optionnal)
+		  * @return array Objects
 		  */
-		abstract protected function _getObjects($context = null);
+		abstract protected function _getObjects($context = null, array $args = null);
 
 		/**
 		  * Affiche les informations de plusieurs types d'éléments ou d'objets
@@ -174,31 +187,33 @@
 		  */
 		protected function _printObjectsList(array $objects)
 		{
-			foreach($objects as $type => &$items)
+			if(!$this->_SHELL->isOneShotCall())
 			{
-				if(count($items) > 0)
+				foreach($objects as $type => &$items)
 				{
-					$this->_SHELL->EOL()->print($this->_LIST_TITLES[$type], 'black', 'white', 'bold');
+					if(count($items) > 0)
+					{
+						$this->_SHELL->EOL()->print($this->_LIST_TITLES[$type], 'black', 'white', 'bold');
 
-					/**
-					  * /!\ L'ordre de base dans items est conservé ce qui rend le résultat incertain
-					  * Préférer l'utilisation de la méthode C\Tools::arrayFilter qui filtre et garanti l'ordre
-					  */
-					//$item = array_intersect_key($item, array_flip($this->_LIST_FIELDS[$type]['fields']));
+						/**
+						  * /!\ L'ordre de base dans items est conservé ce qui rend le résultat incertain
+						  * Préférer l'utilisation de la méthode C\Tools::arrayFilter qui filtre et garanti l'ordre
+						  */
+						//$item = array_intersect_key($item, array_flip($this->_LIST_FIELDS[$type]['fields']));
 
-					if($this->_LIST_FIELDS[$type]['fields'] !== false) {
-						$items = C\Tools::arrayFilter($items, $this->_LIST_FIELDS[$type]['fields']);
+						if($this->_LIST_FIELDS[$type]['fields'] !== false) {
+							$items = C\Tools::arrayFilter($items, $this->_LIST_FIELDS[$type]['fields']);
+						}
+
+						$table = C\Tools::formatShellTable($items);
+						$this->_SHELL->EOL()->print($table, 'grey')->EOL();
 					}
-
-					$table = C\Tools::formatShellTable($items);
-
-					$this->_SHELL->EOL()->print($table, 'grey');
-					$this->_RESULTS->append($items);
-					$this->_SHELL->EOL();
 				}
+				unset($items);
+
+				$this->_SHELL->deleteWaitingMsg();		// Garanti la suppression du message
 			}
 
-			$this->_SHELL->deleteWaitingMsg();		// Garanti la suppression du message
 			return $objects;
 		}
 
@@ -215,9 +230,10 @@
 		  *
 		  * @param string $cmd Command
 		  * @param false|null|string $search Search
+		  * @param string $cwd
 		  * @return Core\StatusValue
 		  */
-		public function shellAutoC_filesystem($cmd, $search = null)
+		public function shellAutoC_filesystem($cmd, $search = null, $cwd = null)
 		{
 			$Core_StatusValue = new C\StatusValue(false, array());
 
@@ -244,10 +260,23 @@
 				$homePathname = C\Tools::getHomePathname();
 				$base = preg_replace('#^(~)#i', $homePathname, $search);
 			}
+			elseif($cwd !== null)
+			{
+				if(C\Tools::is('string&&!empty', $cwd) && ($cwd = realpath($cwd)) !== false) {
+					$mode = 'relative';
+					$workingPathname = $cwd;
+				}
+				else {
+					throw new Exception("Current working directory '".$cwd."' is not valid", E_USER_ERROR);
+				}
+			}
 			else {
 				$mode = 'relative';
 				$workingPathname = C\Tools::getWorkingPathname();
+			}
 
+			if($mode === 'relative')
+			{
 				if($workingPathname !== DIRECTORY_SEPARATOR) {
 					$base = $workingPathname.DIRECTORY_SEPARATOR.$search;
 				}
@@ -414,7 +443,7 @@
 			try {
 				$FilesystemIterator = new FilesystemIterator($base, FilesystemIterator::CURRENT_AS_SELF | FilesystemIterator::FOLLOW_SYMLINKS | FilesystemIterator::SKIP_DOTS);
 			}
-			catch(Exception $e) {}
+			catch(\Exception $e) {}
 
 			if(!isset($e))
 			{

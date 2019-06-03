@@ -251,7 +251,7 @@
 					try {
 						$sshProcessIsReady = $this->_sshProcess->waitingPipes($callback, 10);
 					}
-					catch(Exception $exception) {
+					catch(\Exception $exception) {
 						$sshProcessIsReady = false;
 					}
 
@@ -264,7 +264,7 @@
 						try {
 							$isClosed = $this->_sshProcess->waitingClose(5);
 						}
-						catch(Exception $e) {
+						catch(\Exception $e) {
 							$isClosed = false;
 						}
 
@@ -323,7 +323,7 @@
 					try {
 						$result = ssh2_connect($this->_remoteHost, $this->_remotePort, self::METHODS, $callbacks);
 					}
-					catch(Exception $e) {
+					catch(\Exception $e) {
 						$result = false;
 					}
 
@@ -334,7 +334,7 @@
 						try {
 							$authStatus = $this->_sshSessionAuth();
 						}
-						catch(Exception $e) {
+						catch(\Exception $e) {
 							$this->disconnect();
 							$authStatus = false;
 						}
@@ -427,7 +427,7 @@
 			return false;
 		}*/
 
-		public function putFile($localFile, $remoteFile, $recursively = false, $fileMode = 0644)
+		public function putFile($localFile, $remoteFile, $recursively = false, $fileMode = 0644, Closure $waitingCallback = null, $waitingTimeRate = 2)
 		{
 			if($this->_isConnected() && $this->_isLogged() && !$this->_isTunnel() &&
 				C\Tools::is('string&&!empty', $localFile) && C\Tools::is('string&&!empty', $remoteFile) && C\Tools::is('int&&>0', $fileMode))
@@ -438,14 +438,14 @@
 				else {
 					$recursively = ($recursively) ? ('-r') : ('');
 					$command = "scp ".$this->_getOptions()." ".$recursively." -P ".$this->_remotePort." ".$localFile." ".$this->_username."@".$this->_remoteHost.":".$remoteFile;
-					return $this->_scp($command);
+					return $this->_scp($command, $waitingCallback, $waitingTimeRate);
 				}
 			}
 
 			return false;
 		}
 
-		public function getFile($localFile, $remoteFile, $recursively = false)
+		public function getFile($localFile, $remoteFile, $recursively = false, Closure $waitingCallback = null, $waitingTimeRate = 2)
 		{
 			if($this->_isConnected() && $this->_isLogged() && !$this->_isTunnel() &&
 				C\Tools::is('string&&!empty', $localFile) && C\Tools::is('string&&!empty', $remoteFile))
@@ -456,14 +456,14 @@
 				else {
 					$recursively = ($recursively) ? ('-r') : ('');
 					$command = "scp ".$this->_getOptions()." ".$recursively." -P ".$this->_remotePort." ".$this->_username."@".$this->_remoteHost.":".$remoteFile." ".$localFile;
-					return $this->_scp($command);
+					return $this->_scp($command, $waitingCallback, $waitingTimeRate);
 				}
 			}
 
 			return false;
 		}
 
-		protected function _scp($command)
+		protected function _scp($command, Closure $waitingCallback = null, $waitingTimeRate = null)
 		{
 			$cmdPrefix = ($this->_authMethod === self::AUTH__CREDENTIALS) ? ("sshpass -e ") : ("");
 
@@ -472,17 +472,36 @@
 
 			if($scpProcessStatus)
 			{
-				$scpProcessIsClosed = $scpProcess->waitingClose();
+				if($waitingCallback !== null && C\Tools::is('int&&>0', $waitingTimeRate)) {
+					$scpProcessIsClosed = $scpProcess->waitingCustomClose($waitingCallback, $waitingTimeRate);
+				}
+				else {
+					$scpProcessIsClosed = $scpProcess->waitingClose();
+				}
+
 				$scpProcessIsStopped = $scpProcess->stop();
 
-				if($scpProcess->stderr === '')
+				if($scpProcess->exitCode === 0)
 				{
-					if($scpProcessIsClosed && $scpProcessIsStopped && $scpProcess->exitCode === 0) {
+					/**
+					  * DEBUG: certains process peuvent retourner des informations en STDERR mais avec un code de sortie OK 0
+					  * Par exemple, SCP "Connection to 127.0.0.1 closed by remote host" retourne un code de sortie OK 0
+					  *
+					  * CELA NE SIGNIFIE PAS QUE QUELQUE CHOSE S'EST MAL PASSÉ, ne prendre en compte que le code de sortie!
+					  */
+					/*if($scpProcess->stderr !== '') {
+						throw new Exception("An error occurred while executing SCP: ".$scpProcess->stderr, E_USER_ERROR);
+					}*/
+
+					if($scpProcessIsClosed && $scpProcessIsStopped) {
 						return true;
 					}
 				}
-				else {
+				elseif($scpProcess->stderr !== '') {
 					throw new Exception("An error occurred while executing SCP: ".$scpProcess->stderr, E_USER_ERROR);
+				}
+				else {
+					throw new Exception("Gets exit code '".$scpProcess->exitCode."' while executing SCP", E_USER_ERROR);
 				}
 			}
 
@@ -540,7 +559,7 @@
 			try {
 				$this->disconnect();
 			}
-			catch(Exception $e) {
+			catch(\Exception $e) {
 				var_dump($e->getMessage());
 			}
 		}

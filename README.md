@@ -30,8 +30,11 @@ You have to install a PHP version >= 7.1:
 
 #### REPOSITORY
 * git clone https://github.com/cloudwatt/php-cli-shell_base
-* git checkout tags/v2.0
+* git checkout tags/v2.1
 
-#### ADDON
-*Be careful, you have to install the same version of the addon as base version*  
-Follow the addon README to install the addon
+#### ADDON / APPLICATION
+*Be careful, you have to install the same version of the addon or application as base version*  
+Follow the addon README to install the addon or application:
+- PHPIPAM: https://github.com/cloudwatt/php-cli-shell_phpipam/README.md
+- PATCHMANAGER: https://github.com/cloudwatt/php-cli-shell_patchmanager/README.md
+- FIREWALL: https://github.com/cloudwatt/php-cli-shell_firewall/README.md

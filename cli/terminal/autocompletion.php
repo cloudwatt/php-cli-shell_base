@@ -44,7 +44,7 @@
 			try {
 				$status = $this->_cliAcCommands->_($cmd, $acWithOption, $acWithSpace);
 			}
-			catch(Exception $e) {
+			catch(\Exception $e) {
 				if($this->_debug) { throw $e; }
 				$status = false;
 			}
@@ -74,7 +74,7 @@
 				try {
 					$status = $this->_cliAcArguments->_($cmd, $acWithOption, $acWithSpace);
 				}
-				catch(Exception $e) {
+				catch(\Exception $e) {
 					if($this->_debug) { throw $e; }
 					$status = false;
 				}

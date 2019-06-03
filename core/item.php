@@ -3,8 +3,19 @@
 
 	class Item implements \Iterator, \ArrayAccess, \Countable
 	{
+		/**
+		  * @var string
+		  */
 		protected $_name;
+
+		/**
+		  * @var Core\MyArrayObject[]
+		  */
 		protected $_arrayObject;
+
+		/**
+		  * @var Core\Item[]
+		  */
 		protected $_datasObject;
 
 

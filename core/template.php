@@ -121,7 +121,15 @@
 			if($this->_scriptFilename !== null)
 			{
 				ob_start();
-				require $this->_scriptFilename;
+
+				try {
+					require $this->_scriptFilename;
+				}
+				catch(\Exception $e) {
+					ob_end_clean();
+					throw $e;
+				}
+
 				$buffer = ob_get_clean();
 
 				$status = $this->_export($buffer);

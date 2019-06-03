@@ -131,7 +131,7 @@
 			try {
 				$status = $this->_prepare($cmd);
 			}
-			catch(Exception $e) {
+			catch(\Exception $e) {
 				if($this->_debug) { throw $e; }
 				return false;
 			}
@@ -392,6 +392,7 @@
 					break;
 				}
 			}
+			unset($cmdPart);
 
 			$position = $index+1;
 
@@ -497,6 +498,7 @@
 					}
 				}
 			}
+			unset($commandValue);
 			// -------------------
 
 			// Traitement commande position

@@ -315,6 +315,11 @@
 			}
 		}
 
+		public function executeCmdCall($cmd)
+		{
+			return $this->_routeCliCmdCall($cmd);
+		}
+
 		public function dispatchCmdCall($cmd, array $args)
 		{
 			$this->_preRoutingShellCmd($cmd, $args);
@@ -328,6 +333,7 @@
 			foreach($args as &$arg) {
 				$arg = preg_replace('#^("|\')|("|\')$#i', '', $arg);
 			}
+			unset($arg);
 
 			$this->displayWaitingMsg(false, false);
 		}
@@ -380,7 +386,7 @@
 					$this->error($this->_manCommands[$cmd], 'red');
 				}
 				else {
-					$this->error("Une erreur s'est produit lors de l'exécution de cette commande", 'red');
+					$this->error("Une erreur s'est produite lors de l'exécution de cette commande", 'red');
 				}
 			}
 
@@ -442,6 +448,14 @@
 			return $this->_e($text, $textColor, $bgColor, $textStyle, true);
 		}
 
+		/**
+		  * @param int $multiplier
+		  * @param string $textColor
+		  * @param string $bgColor
+		  * @param string $textStyle
+		  * @param bool $autoDelWaitingMsg
+		  * @return $this
+		  */
 		public function EOL($multiplier = 1, $textColor = false, $bgColor = false, $textStyle = false, $autoDelWaitingMsg = true)
 		{
 			if($autoDelWaitingMsg) {
@@ -452,6 +466,32 @@
 			return $this;	// /!\ Important
 		}
 
+		/**
+		  * @param string $text
+		  * @param string $textColor
+		  * @param string $bgColor
+		  * @param string $textStyle
+		  * @param bool $autoDelWaitingMsg
+		  * @return $this
+		  */
+		public function echo($text, $textColor = 'green', $bgColor = false, $textStyle = false, $autoDelWaitingMsg = true)
+		{
+			if($autoDelWaitingMsg) {
+				$this->deleteWaitingMsg();
+			}
+
+			$this->_e($text, $textColor, $bgColor, $textStyle, false);
+			return $this;	// /!\ Important
+		}
+
+		/**
+		  * @param string $text
+		  * @param string $textColor
+		  * @param string $bgColor
+		  * @param string $textStyle
+		  * @param bool $autoDelWaitingMsg
+		  * @return $this
+		  */
 		public function print($text, $textColor = 'green', $bgColor = false, $textStyle = false, $autoDelWaitingMsg = true)
 		{
 			if($autoDelWaitingMsg) {
@@ -465,14 +505,31 @@
 			  * - Si $autoDelWaitingMsg === false
 			  */
 			$this->EOL(1, false, false, false, false);
-			return $this->_e($text, $textColor, $bgColor, $textStyle, false);
+			$this->_e($text, $textColor, $bgColor, $textStyle, false);
+			return $this;	// /!\ Important
 		}
 
+		/**
+		  * @param string $text
+		  * @param string $textColor
+		  * @param string $bgColor
+		  * @param string $textStyle
+		  * @param bool $autoDelWaitingMsg
+		  * @return $this
+		  */
 		public function debug($text, $textColor = 'black', $bgColor = 'white', $textStyle = false, $autoDelWaitingMsg = true)
 		{
 			return $this->print($text, $textColor, $bgColor, $textStyle, $autoDelWaitingMsg);
 		}
 
+		/**
+		  * @param string|Exception $text
+		  * @param string $textColor
+		  * @param string $bgColor
+		  * @param string $textStyle
+		  * @param bool $autoDelWaitingMsg
+		  * @return $this
+		  */
 		public function error($text, $textColor = 'red', $bgColor = false, $textStyle = false, $autoDelWaitingMsg = true)
 		{
 			if($autoDelWaitingMsg) {
@@ -486,33 +543,69 @@
 			  * - Si $autoDelWaitingMsg === false
 			  */
 			$this->EOL(1, false, false, false, false);
-			return $this->_e($text, $textColor, $bgColor, $textStyle, false);
+
+			if($text instanceof \Exception) {
+				$this->throw($text, false, false);
+			}
+			else {
+				$this->_e($text, $textColor, $bgColor, $textStyle, false);
+			}
+
+			return $this;	// /!\ Important
 		}
 
-		public function throw(\Exception $exception)
+		/**
+		  * @param Exception $exception
+		  * @param bool $throwUnknownException
+		  * @param bool $exitAfterProcess
+		  * @return $this
+		  */
+		public function throw(\Exception $exception, $throwUnknownException = true, $exitAfterProcess = false)
 		{
-			if($exception instanceof E\Message) {
-				return $this->error($exception->getMessage(), 'orange');
+			if($exception instanceof E\Message)
+			{
+				$codeColors = array(
+					E_USER_ERROR => 'red',
+					E_USER_WARNING => 'orange',
+					E_USER_NOTICE => 'blue',
+				);
 			}
 			else
 			{
-				switch($exception->getCode())
+				$codeColors = array(
+					E_USER_ERROR => 'red',
+					E_USER_WARNING => 'red',
+					E_USER_NOTICE => 'orange',
+				);
+			}
+
+			$eCode = $exception->getCode();
+			$eMessage = $exception->getMessage();
+
+			switch($exception->getCode())
+			{
+				case E_USER_ERROR:
+				case E_USER_WARNING:
+				case E_USER_NOTICE: {
+					$this->error($eMessage, $codeColors[$eCode]);
+					break;
+				}
+				default:
 				{
-					case E_USER_ERROR: {
-						$this->error($exception->getMessage(), 'red');
-						exit;
-					}
-					case E_USER_WARNING: {
-						return $this->error($exception->getMessage(), 'red');
-					}
-					case E_USER_NOTICE: {
-						return $this->error($exception->getMessage(), 'orange');
-					}
-					default: {
+					if($throwUnknownException) {
 						throw $exception;
+					}
+					else {
+						$this->error($eMessage, 'red');
 					}
 				}
 			}
+
+			if($exitAfterProcess) {
+				exit;
+			}
+
+			return $this;
 		}
 
 		public function __get($name)

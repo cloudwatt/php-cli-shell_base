@@ -34,12 +34,29 @@
 
 		protected function _getConsoleSize()
 		{
-			$sttyCommand = 'stty -a';
+			/*$sttyCommand = 'stty -a';
 			exec($sttyCommand, $outputs, $status);
 
 			if($status === 0 && count($outputs) >= 1)
 			{
+				// Linux
 				if(preg_match('#rows (?<rows>[0-9]+); columns (?<columns>[0-9]+);#i', $outputs[0], $matches)) {
+					return $matches;
+				}
+				// MacOS
+				elseif(preg_match('#(?<rows>[0-9]+) rows; (?<columns>[0-9]+) columns;#i', $outputs[0], $matches)) {
+					return $matches;
+				}
+			}
+
+			return false;*/
+
+			$sttyCommand = 'stty size';
+			exec($sttyCommand, $outputs, $status);
+
+			if($status === 0 && count($outputs) >= 1)
+			{
+				if(preg_match('#^(?<rows>[0-9]+) (?<columns>[0-9]+)$#i', $outputs[0], $matches)) {
 					return $matches;
 				}
 			}
@@ -122,5 +139,32 @@
 		{
 			$this->_debug = (bool) $debug;
 			return $this;
+		}
+
+		public static function prepareTTY()
+		{
+			$command = 'stty -g';					// -g identique à --save
+			//$command = 'stty --save';				// Non dispo sous MacOS
+			exec($command, $outputs, $status);
+
+			if(count($outputs) !== 1 || $status !== 0) {
+				throw new Exception("Unable to execute stty command: ".$command, E_USER_ERROR);
+			}
+
+			//$sttySettings = current($outputs);
+			shell_exec('stty -icanon -echo min 1 time 0');
+		}
+
+		public static function restoreTTY()
+		{
+			//$command = 'stty "'.$sttySettings.'"';
+			$command = 'stty sane';
+			//$command = 'reset';
+
+			exec($command, $outputs, $status);
+
+			if($status !== 0) {
+				throw new Exception("Unable to execute stty command: ".$command, E_USER_ERROR);
+			}
 		}
 	}

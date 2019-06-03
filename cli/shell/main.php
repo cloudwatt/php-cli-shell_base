@@ -63,6 +63,17 @@
 
 		public static function errorHandler($errno, $errstr, $errfile, $errline)
 		{
+			/**
+			  * Ne pas désactiver le buffer ici sinon il y aura une différence entre les ErrorException et les Exception
+			  * Lors d'une Error et donc d'une ErrorException, le buffer, s'il est activé, serait désactivé
+			  * mais lors d'une Exception "normale" le buffer resterait activé
+			  */
+			/*$bufferLevel = ob_get_level();
+
+			for($i=0; $i<$bufferLevel; $i++) {
+				ob_end_flush();
+			}*/
+
 			throw new ErrorException($errstr, 0, $errno, $errfile, $errline);
 		}
 

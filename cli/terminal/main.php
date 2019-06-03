@@ -12,6 +12,11 @@
 		const STDERR = 2;
 
 		/**
+		  * @var array
+		  */
+		protected $_pipes = null;
+
+		/**
 		  * @var string
 		  */
 		protected $_shPrompt = "";
@@ -57,10 +62,45 @@
 			return $this;
 		}
 
-		protected function _start()
+		public function launch(Closure $dispatchCmdCall)
+		{
+			try {
+				return $this->_launch($dispatchCmdCall);
+			}
+			catch(\Exception $e) {
+				$this->_quit();
+				throw $e;
+			}
+		}
+
+		/**
+		  * Prépare TTY
+		  * Prépare STDIN
+		  *
+		  * @return $this
+		  */
+		protected function _open()
+		{
+			// readline appelé plus d'une fois provoque un segmentation faults
+			/*if(function_exists('readline_callback_handler_install')) {
+				readline_callback_handler_install('', function() {});
+			}*/
+
+			Console::prepareTTY();
+
+			$this->_pipes = array(STDIN);
+			stream_set_blocking(STDIN, false);				// Flux non bloquant, temps réel
+			//stream_set_chunk_size(STDIN, 4096);
+			//stream_set_read_buffer(STDIN, 8192);
+
+			return $this;
+		}
+
+		protected function _prepare()
 		{
 			$this->_position = 0;
 			$this->_printPrompt();
+			return $this;
 		}
 
 		protected function _streamSelect(array &$r)
@@ -71,7 +111,7 @@
 			try {
 				$n = stream_select($r, $w, $e, 1);
 			}
-			catch(Exception $e)
+			catch(\Exception $e)
 			{
 				// /!\ stream_select() expects parameter 3 to be array, object given
 				$w = NULL;
@@ -87,40 +127,19 @@
 			return $n;
 		}
 
-		public function launch(Closure $dispatchCmdCall)
+		protected function _launch(Closure $dispatchCmdCall)
 		{
 			$cmd = "";
-			$this->_start();
-
-			// readline appelé plus d'une fois provoque un segmentation faults
-			/*if(function_exists('readline_callback_handler_install')) {
-				readline_callback_handler_install('', function() {});
-			}*/
-
-			$sttyCommand = 'stty -g';					// -g identique à --save
-			//$sttyCommand = 'stty --save';				// Non dispo sous MacOS
-			exec($sttyCommand, $outputs, $status);
-
-			if(count($outputs) !== 1 || $status !== 0) {
-				throw new Exception("Unable to execute stty command '".$sttyCommand."'", E_USER_ERROR);
-			}
-
-			$sttySettings = current($outputs);
-			shell_exec('stty -icanon -echo min 1 time 0');
-
-			$pipes = array(STDIN);
-			stream_set_blocking(STDIN, false);				// Flux non bloquant, temps réel
-			//stream_set_chunk_size(STDIN, 4096);
-			//stream_set_read_buffer(STDIN, 8192);
+			$this->_open()->_prepare();
 
 			while(true)
 			{
-				$r = $pipes;	// copy
-				$n = $this->_streamSelect($r);
+				$pipes = $this->_pipes;	// copy
+				$n = $this->_streamSelect($pipes);
 
 				if($n !== false)
 				{
-					if($n > 0 && in_array(STDIN, $r))
+					if($n > 0 && in_array(STDIN, $pipes))
 					{
 						/**
 						  * stream_get_contents impose stream_set_blocking à false pour du temp réel
@@ -151,29 +170,21 @@
 								if($result !== null)
 								{
 									list($cmd, $args) = $result;
-									$exit = $dispatchCmdCall($cmd, $args);
+
+									try {
+										$exit = $dispatchCmdCall($cmd, $args);
+									}
+									catch(\Exception $e) {
+										$this->_quit();
+										throw $e;
+									}
 
 									if(!$exit) {
 										$cmd = "";
-										$this->_start();
+										$this->_open()->_prepare();			// On réouvre le shell au cas où l'action ait modifiée le TTY, par exemple pour une question Cli\Terminal\Question
 									}
-									else
-									{
-										// readline appelé plus d'une fois provoque un segmentation faults
-										/*if(function_exists('readline_callback_handler_remove')) {
-											readline_callback_handler_remove();
-										}*/
-
-										shell_exec('stty "'.$sttySettings.'"');
-
-										/**
-										  * Ne pas ferme STDIN directement sinon il ne sera plus disponible pour ce processus PHP
-										  * stream_select ( array &$read ...) $read est modifié par stream_select
-										  *
-										  * Si on souhaite fermer, utiliser php://stdin
-										  */
-										//fclose($r[0]);
-
+									else {
+										$this->_cleaner()->_quit();
 										return true;
 									}
 								}
@@ -182,10 +193,19 @@
 					}
 				}
 				else {
+					$this->_cleaner()->_quit();
 					return false;
 				}
 			}
 		}
+
+		/**
+		  * Méthode réservée pour des traitements comme _actions mais
+		  * pour les classes filles, voir Cli\Terminal\Terminal
+		  */
+		/*protected function _start()
+		{
+		}*/
 
 		/**
 		  * Méthode réservée pour des traitements comme _actions mais
@@ -199,8 +219,37 @@
 		{
 		}
 
-		protected function _end()
+		/**
+		  * Méthode réservée pour des traitements comme _actions mais
+		  * pour les classes filles, voir Cli\Terminal\Terminal
+		  */
+		/*protected function _end()
 		{
+		}*/
+
+		protected function _cleaner()
+		{
+			return $this;
+		}
+
+		protected function _quit()
+		{
+			// readline appelé plus d'une fois provoque un segmentation faults
+			/*if(function_exists('readline_callback_handler_remove')) {
+				readline_callback_handler_remove();
+			}*/
+
+			Console::restoreTTY();
+
+			/**
+			  * Ne pas ferme STDIN directement sinon il ne sera plus disponible pour ce processus PHP
+			  * stream_select ( array &$read ...) $read est modifié par stream_select
+			  *
+			  * Si on souhaite fermer, utiliser php://stdin
+			  */
+			//fclose($pipes[0]);
+
+			return $this;
 		}
 
 		protected function _getPrintedPrompt()
@@ -268,10 +317,9 @@
 
 		protected function _delete($cmd)
 		{
-			$_cmd = str_split($cmd);
+			$_cmd = preg_split('##u', $cmd, null, PREG_SPLIT_NO_EMPTY);
 			unset($_cmd[$this->_position]);
 			$cmd = implode('', $_cmd);
-
 			$this->_refresh($cmd);
 			return $cmd;
 		}

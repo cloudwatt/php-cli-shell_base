@@ -236,9 +236,38 @@
 			}
 		}
 
-		public function waitingClose($timeout = self::TIMEOUT_CLOSE)
+		public function waitingCustomClose(Closure $callback = null, $timeRate = 2, $timeout = self::TIMEOUT_CLOSE)
 		{
 			$this->_lastOutputTime = microtime(true);
+
+			do
+			{
+				$startTime = microtime(true);
+				$status = $this->_getDataPipes(true);
+				$isTimeout = ($timeout < (microtime(true) - $this->_lastOutputTime));
+
+				if($callback !== null) {
+					$usTime = microtime(true) - $startTime;
+					usleep(($timeRate * 1000000) - $usTime);
+					$callback($this);
+				}
+			}
+			while($this->isRunning() && $status && !$isTimeout);
+
+			if(!$status) {
+				throw new Exception("Unable to get datas from pipes", E_USER_ERROR);
+			}
+			elseif($isTimeout) {
+				throw new Exception("idle timeout (".$timeout."s) expired", E_USER_ERROR);
+			}
+			else {
+				return !$this->isRunning();
+			}
+		}
+
+		public function waitingClose($timeout = self::TIMEOUT_CLOSE)
+		{
+			/*$this->_lastOutputTime = microtime(true);
 
 			do {
 				$status = $this->_getDataPipes(true);
@@ -254,7 +283,9 @@
 			}
 			else {
 				return !$this->isRunning();
-			}
+			}*/
+
+			return $this->waitingCustomClose(null, null, $timeout);
 		}
 
 		protected function _getDataPipes($blocking = true)
@@ -497,7 +528,7 @@
 			try {
 				$this->stop();
 			}
-			catch(Exception $e) {
+			catch(\Exception $e) {
 				var_dump($e->getMessage());
 			}
 		}

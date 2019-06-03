@@ -8,7 +8,7 @@
 		/**
 		  * Flag KEEP_FAILED_STATUS is mandatory
 		  *
-		  * @param $flags int
+		  * @param int $flags
 		  * @return $this
 		  */
 		public function __construct($flags = self::ALLOW_CHANGES | self::KEEP_FAILED_STATUS)
@@ -24,7 +24,7 @@
 		/**
 		  * Flag KEEP_FAILED_STATUS is mandatory
 		  *
-		  * @param $flags int
+		  * @param int $flags
 		  * @return $this
 		  */
 		public function setFlags($flags)

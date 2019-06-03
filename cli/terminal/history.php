@@ -70,6 +70,7 @@
 					if($result)
 					{
 						$this->_SplFileObject = new SplFileObject($this->_filename, 'r');
+						//$this->_SplFileObject->setFlags(SplFileObject::DROP_NEW_LINE);
 						$this->_SplFileObject->seek(PHP_INT_MAX);
 
 						$this->_lineCounter = $this->_SplFileObject->key()+1;
@@ -142,7 +143,7 @@
 					return $this->open();
 				}
 			}
-			catch(Exception $e) {
+			catch(\Exception $e) {
 				throw $e;
 			}
 

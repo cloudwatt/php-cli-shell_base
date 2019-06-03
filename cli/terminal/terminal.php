@@ -90,7 +90,7 @@
 		/**
 		  * Sets shell prompt
 		  *
-		  * @param $prompt string Shell prompt
+		  * @param string $prompt Shell prompt
 		  * @return $this
 		  */
 		public function setShellPrompt($prompt = '')
@@ -112,7 +112,7 @@
 		  * Sets shell prompt
 		  * Shell prompt backup is not updated
 		  *
-		  * @param $prompt string Shell prompt
+		  * @param string $prompt Shell prompt
 		  * @return $this
 		  */
 		protected function _setShellPrompt($prompt)
@@ -132,7 +132,7 @@
 		/**
 		  * Prepare shell prompt
 		  *
-		  * @param $prompt string Shell prompt
+		  * @param string $prompt Shell prompt
 		  * @return string Shell prompt
 		  */
 		protected function _prepareShellPrompt($prompt, $appendSuffix = true)
@@ -160,14 +160,15 @@
 			return $this;
 		}
 
-		protected function _start()
+		protected function _prepare()
 		{
-			parent::_start();
+			parent::_prepare();
 
 			$this->_userCmd = "";
 			$this->_modeCmd = "";
 
 			$this->_shMode = false;
+			return $this;
 		}
 
 		protected function _actions(&$cmd, $c)
@@ -201,6 +202,51 @@
 					$this->_position = 0;
 					$this->_refresh('');
 					$cmd = "";
+					break;
+				}
+				case "\033b":	// ALT+b
+				case "\033B":	// ALT+B
+				{
+					$this->_exitMode($cmd);
+
+					$moveStatus = preg_match_all('# ([\S])#i', $cmd, $matches, PREG_OFFSET_CAPTURE);
+
+					if(!$moveStatus) {
+						$matches = array();
+					}
+					else {
+						$matches = $matches[1];
+					}
+
+					$previousPosition = 0;
+					$matches = array_reverse($matches);
+
+					foreach($matches as $match)
+					{
+						if($match[1] < $this->_position) {
+							$previousPosition = $match[1];
+							break;
+						}
+					}
+
+					$this->_position = $previousPosition;
+					$this->_move($this->_position);
+					break;
+				}
+				case "\033f":	// ALT+f
+				case "\033F":	// ALT+F
+				{
+					$this->_exitMode($cmd);
+
+					$moveStatus = preg_match('# ([\S])#i', $cmd, $matches, PREG_OFFSET_CAPTURE, $this->_position);
+
+					if(!$moveStatus) {
+						$matches = array();
+						$matches[1][1] = $cmdLen;
+					}
+
+					$this->_position = $matches[1][1];
+					$this->_move($this->_position);
 					break;
 				}
 				case "\033":	// ECHAP
@@ -360,7 +406,13 @@
 						{
 							$options = array_unique($options);
 							$columns = $this->_console->getColumns();
-							$msg = C\Tools::cutShellTable($options, $columns, false, false, false);
+
+							if($columns !== false) {
+								$msg = C\Tools::cutShellTable($options, $columns, false, false, false);
+							}
+							else {
+								$msg = C\Tools::formatShellTable(array($options), false, false, false, true);
+							}
 
 							$this->_print($msg, 'cyan');
 
@@ -416,8 +468,10 @@
 					if(preg_match("<[[:cntrl:]]>i", $c)) {
 						// do nothing
 					}
-					// /!\ Penser à modifier $charAllowed dans le else
-					elseif(preg_match("<^([a-z0-9_\-\"'~#*+()@%\[\]?,.;/\\\\:! ]+)$>i", $c))
+					/**
+					  * /!\ Flag u pour unicode indispensable pour les caractères accentués
+					  */
+					elseif(preg_match("<^([[:print:]]+)$>iu", $c))
 					{
 						$cmdLen = mb_strlen($cmd);
 						//$c = str_replace("\t", "", $c);
@@ -437,8 +491,7 @@
 						$this->_searchCmd($cmd, true);
 					}
 					else {
-						$charAllowed = "a-z0-9_-\"'~#*+()@%[]?,.;/\\:! ";
-						$this->_print("Caractères autorisés '".$charAllowed."'", 'orange');
+						$this->_print("Caractères non autorisés '".$c."'", 'orange');
 						$this->_printPrompt($cmd);
 					}
 				}
@@ -450,8 +503,6 @@
 		protected function _end()
 		{
 			$this->_history->close();
-
-			parent::_end();
 		}
 
 		protected function _setShellPromptMode($mode)
@@ -545,7 +596,7 @@
 			try {
 				$status = $this->_history->writeLine($line);
 			}
-			catch(Exception $e) {
+			catch(\Exception $e) {
 				$this->_print('Can not write command to history file', 'red');
 			}
 

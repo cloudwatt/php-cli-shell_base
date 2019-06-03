@@ -166,8 +166,9 @@
 					case CURLOPT_URL:
 						$this->setUrl($options[$key]);
 						break;
-					default:
-						continue;
+					default: {
+						continue(2);
+					}
 				}
 
 				unset($options[$key]);

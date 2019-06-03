@@ -28,6 +28,7 @@
 					foreach($input as &$i) {
 						$i = self::arrayToObject($i);
 					}
+					unset($i);
 
 					return new ArrayObject($input, ArrayObject::ARRAY_AS_PROPS);
 				}
@@ -732,11 +733,11 @@
 		  * Trailing delimiters, such as \ and /, are also removed
 		  *
 		  * @param string $filename Filename to resolve
-		  * @param bool $useRootDir Use the ROOT_DIR constant in place of the current working directory
+		  * @param bool|string $rootDir TRUE use the ROOT_DIR constant. FALSE use the current working directory. STRING use it as root directory
 		  * @param bool $touch Exec touch command on filename
 		  * @return string Filename
 		  */
-		public static function filename($filename, $useRootDir = true, $touch = false)
+		public static function filename($filename, $rootDir = true, $touch = false)
 		{
 			$firstChar = substr($filename, 0, 1);
 				
@@ -748,14 +749,20 @@
 			}
 			elseif($firstChar !== DIRECTORY_SEPARATOR)
 			{
-				if($useRootDir)
+				if($rootDir === true)
 				{
 					if(defined('ROOT_DIR')) {
 						$filename = ROOT_DIR.DIRECTORY_SEPARATOR.$filename;
 					}
 				}
-				elseif(($cwd = self::getWorkingPathname()) !== false) {
-					$filename = $cwd.DIRECTORY_SEPARATOR.$filename;
+				elseif($rootDir === false)
+				{
+					if(($cwd = self::getWorkingPathname()) !== false) {
+						$filename = $cwd.DIRECTORY_SEPARATOR.$filename;
+					}
+				}
+				elseif(self::is('string&&!empty', $rootDir)) {
+					$filename = $rootDir.DIRECTORY_SEPARATOR.$filename;
 				}
 			}
 
@@ -793,5 +800,68 @@
 			}
 
 			return $pathname;
+		}
+
+		public static function getCredentials(MyArrayObject $config, $prefix = null, $suffix = null, $loginIsRequired = false, $passwordIsRequired = false)
+		{
+			if(!self::is('human', $prefix)) {
+				$prefix = '';
+			}
+
+			if(!self::is('human', $suffix)) {
+				$suffix = '';
+			}
+
+			$loginCredential = $prefix.'loginCredential'.$suffix;
+			$loginEnvVarName = $prefix.'loginEnvVarName'.$suffix;
+			$passwordCredential = $prefix.'passwordCredential'.$suffix;
+			$passwordEnvVarName = $prefix.'passwordEnvVarName'.$suffix;
+
+			$loginCredential = self::getConfigEnvVar($config, $loginCredential, $loginEnvVarName, $loginIsRequired);
+			$passwordCredential = self::getConfigEnvVar($config, $passwordCredential, $passwordEnvVarName, $passwordIsRequired);
+
+			return array($loginCredential, $passwordCredential);
+		}
+
+		public static function getConfigEnvVar(MyArrayObject $config, $configVar, $envVar, $isRequired = false)
+		{
+			if($config->key_exists($configVar) && self::is('string&&!empty', $config[$configVar])) {
+				return $config[$configVar];
+			}
+			elseif($config->key_exists($envVar) && self::is('string&&!empty', $config[$envVar]))
+			{
+				$envVar = $config[$envVar];
+				$result = getenv($envVar);
+
+				if($result === false && $isRequired) {
+					throw new Exception("Unable to retrieve variable '".$envVar."' from environment", E_USER_ERROR);
+				}
+
+				return $result;
+			}
+			elseif($isRequired) {
+				throw new Exception("Unable to retrieve configuration parameter '".$configVar."' or environment variable '".$envVar."'", E_USER_ERROR);
+			}
+			else {
+				return false;
+			}
+		}
+
+		public static function flushAllBuffer()
+		{
+			$bufferLevel = ob_get_level();
+
+			for($i=0; $i<$bufferLevel; $i++) {
+				ob_end_flush();
+			}
+		}
+
+		public static function cleanAllBuffer()
+		{
+			$bufferLevel = ob_get_level();
+
+			for($i=0; $i<$bufferLevel; $i++) {
+				ob_end_clean();
+			}
 		}
 	}

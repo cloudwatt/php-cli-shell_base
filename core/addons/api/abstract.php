@@ -10,19 +10,14 @@
 		const WILDCARD = '*';
 
 		/**
-		  * @var Core\Api\Adapter
+		  * @var Core\Addon\Service
 		  */
-		protected static $_adapter = null;				// Global adapter (enabled)
+		protected $_service = null;
 
 		/**
-		  * @var Core\Api\Adapter[]
+		  * @var Core\Addon\Adapter
 		  */
-		protected static $_allAdapters = array();		// a = all/array/available adapter
-
-		/**
-		  * @var Core\Api\Adapter
-		  */
-		protected $_ownerAdapter = null;				// Local adapter (for this instance)
+		protected $_adapter = null;
 
 		/**
 		  * @var string
@@ -50,29 +45,110 @@
 		protected $_objectDatas = null;
 
 
-		public function __construct($objectId = null)
+		/**
+		  * @param mixed $objectId
+		  * @param Addon\Service $service
+		  * @return Addon\Api_Abstract
+		  */
+		public function __construct($objectId = null, Service $service = null)
 		{
-			/**
-			  * Permet de garder la référence de l'adapter
-			  * actuellement activé pour cette instance d'Api_Main
-			  */
-			$this->_ownerAdapter = self::$_adapter;
+			$this->_initService($service);
+			$this->_initAdapter($this->_service);
 
-			// @todo temp
-			//$this->_setObjectId($objectId);
+			$this->_setObjectId($objectId);
 		}
 
-		public static function factoryFromDatas(array $datas)
+		/**
+		  * @param mixed $objectId
+		  * @param Addon\Service $service
+		  * @return Addon\Api_Abstract
+		  */
+		public static function factory($objectId, Service $service = null)
 		{
+			if($service === null) {
+				$service = static::_getService();
+			}
+
+			$store = $service->store;
+
+			if($store !== false && $store->isReady(static::OBJECT_TYPE))
+			{
+				$storeContainer = $store->getContainer(static::OBJECT_TYPE);
+				$api = $storeContainer->retrieve($objectId);
+
+				if($api !== false) {
+					return $api;
+				}
+				else {
+					unset($api);
+				}
+			}
+			else {
+				$storeContainer = false;
+			}
+
+			$cache = $service->cache;
 			$className = static::class;
-			$instanceObject = new $className();
-			$status = $instanceObject->_setObject($datas);
-			return ($status) ? ($instanceObject) : (false);
+
+			if($cache !== false && $cache->isReady(static::OBJECT_TYPE))
+			{
+				$cacheContainer = $cache->getContainer(static::OBJECT_TYPE);
+				$object = $cacheContainer->retrieve($objectId);
+
+				if($object !== false)
+				{
+					$api = new $className(null, $service);
+					$status = $api->_wakeup($object);
+
+					if(!$status) {
+						unset($api);
+					}
+				}
+			}
+
+			if(!isset($api)) {
+				$api = new $className($objectId, $service);
+			}
+
+			if($storeContainer !== false) {
+				$storeContainer->assign($api);
+			}
+
+			return $api;
 		}
 
 		public static function getObjectType()
 		{
 			return static::OBJECT_TYPE;
+		}
+
+		protected function _initService(Service $service = null)
+		{
+			/**
+			  * Permet de garder la référence du service
+			  * actuellement activé pour cette instance d'Api
+			  */
+			if($service !== null) {
+				$this->_service = $service;
+			}
+			else {
+				$this->_service = static::_getService();
+			}
+		}
+
+		protected function _initAdapter(Service $service)
+		{
+			$this->_adapter = $service->adapter;
+		}
+
+		public function hasObjectId()
+		{
+			return ($this->_objectId !== null);
+		}
+
+		public function getObjectId()
+		{
+			return $this->_objectId;
 		}
 
 		protected function _setObjectId($objectId)
@@ -88,7 +164,7 @@
 
 		abstract protected function _getObject();
 
-		protected function _setObject(array $datas)
+		protected function _wakeup(array $datas)
 		{
 			if(static::objectIdIsValid($datas[static::FIELD_ID]))
 			{
@@ -241,6 +317,42 @@
 		  */
 		abstract protected function _hardReset($resetObjectId = false);
 
+		/**
+		  * @return $this
+		  */
+		protected function _registerToStore()
+		{
+			if($this->objectExists)
+			{
+				$store = $this->_service->store;
+				$objectId = $this->getObjectId();
+
+				if($store !== false && $store->isReady(static::OBJECT_TYPE) && !isset($store[$objectId])) {
+					$store->getContainer(static::OBJECT_TYPE)->assign($this);
+				}
+			}
+
+			return $this;
+		}
+
+		/**
+		  * @return $this
+		  */
+		protected function _unregisterFromStore()
+		{
+			if($this->objectExists)
+			{
+				$store = $this->_service->store;
+				$objectId = $this->getObjectId();
+
+				if($store !== false && $store->isReady(static::OBJECT_TYPE) && isset($store[$objectId])) {
+					$store->getContainer(static::OBJECT_TYPE)->unassign($this);
+				}
+			}
+
+			return $this;
+		}
+
 		public function hasErrorMessage()
 		{
 			return ($this->_errorMessage !== null);
@@ -261,212 +373,167 @@
 			return $this->_errorMessage = null;
 		}
 
-		/**
-		  * @param string|Core\Api\Adapter $adapter
-		  * @return bool
-		  */
-		protected static function _isValidAdapter($adapter)
+		public function __get($name)
 		{
-			$ReflectionClass = new ReflectionClass($adapter);
-			return $ReflectionClass->isSubclassOf(static::$_parentAdapter);
-		}
-
-		/**
-		  * @param Core\Api\Adapter|Core\Api\Adapter[] $adapter
-		  * @throw Core\Exception
-		  * @return bool
-		  */
-		public static function setAdapter($adapter)
-		{
-			if(!is_array($adapter)) {
-				$adapters = array($adapter);
-			}
-			else {
-				$adapters = $adapter;
-			}
-
-			if(C\Tools::is('array&&count>0', $adapters))
+			switch($name)
 			{
-				foreach($adapters as $adapter)
-				{
-					if(!static::_isValidAdapter($adapter)) {
-						throw new Exception("Unable to set adapter object(s), it is not '".static::$_parentAdapter."' instance or an array of it", E_USER_ERROR);
-					}
-					elseif(!($adapter instanceof Adapter)) {
-						throw new Exception("Unable to set adapter object(s), it is not Core\Api\Adapter instance or an array of it", E_USER_ERROR);
-					}
+				case 'service': {
+					return $this->_service;
 				}
-
-				self::$_adapter = current($adapters);
-
-				if(count($adapters) > 1) {
-					self::$_allAdapters = $adapters;
+				case 'adapter': {
+					return $this->_adapter;
 				}
-
-				return true;
-			}
-
-			return false;
-		}
-
-		/**
-		  * @return null|Core\Api\Adapter|Core\Api\Adapter[]
-		  */
-		public static function getAdapter()
-		{
-			return (count(self::$_allAdapters) > 0) ? (self::$_allAdapters) : (self::$_adapter);
-		}
-
-		/**
-		  * @param string $key
-		  * @return bool
-		  */
-		public static function enableAdapter($key)
-		{
-			if(array_key_exists($key, self::$_allAdapters)) {
-				self::$_adapter = self::$_allAdapters[$key];
-				return true;
-			}
-			else {
-				return false;
+				case 'id': {
+					return $this->getObjectId();
+				}
+				case 'name':
+				case 'label': {
+					return $this->getObjectLabel();
+				}
+				default: {
+					throw new Exception("This attribute '".$name."' does not exist", E_USER_ERROR);
+				}
 			}
 		}
 
-		/**
-		  * @return null|Core\Api\Adapter
-		  */
-		public static function getAdapterEnabled()
+		public function __call($name, array $arguments)
 		{
-			return self::$_adapter->getServerId();
-		}
-
-		/**
-		  * @param bool $state Turn on or off cache feature
-		  * @param Core\Api\Adapter|Core\Api\Adapter[] $adapter Adapter or an array of it
-		  * @return bool
-		  */
-		public static function cache($state = null, $adapter = null)
-		{
-			if(C\Tools::is('bool', $state))
+			if(substr($name, 0, 3) === 'get')
 			{
-				if($adapter === null) {
-					$adapter = self::getAdapter();
-				}
+				$name = substr($name, 3);
+				$name = mb_strtolower($name);
 
-				if($adapter instanceof Adapter) {
-					$adapter = array($adapter);
-				}
-
-				if(is_array($adapter))
+				switch($name)
 				{
-					foreach($adapter as $_adapter)
-					{
-						$id = $_adapter->getServerId();
-						static::$_cache[$id] = $state;
-
-						if(!static::$_cache[$id]) {
-							static::_cacheCleaner($_adapter);
-						}
+					case 'service': {
+						return $this->_service;
 					}
-
-					return true;
+					case 'adapter': {
+						return $this->_adapter;
+					}
+					case 'id': {
+						return $this->getObjectId();
+					}
+					case 'name':
+					case 'label': {
+						return $this->getObjectLabel();
+					}
 				}
 			}
 
-			return false;
+			throw new Exception("This method '".$name."' does not exist", E_USER_ERROR);
 		}
 
-		/**
-		  * @param Core\Api\Adapter $adapter
-		  * @return bool
-		  */
-		public static function cacheEnabled(Adapter $adapter = null)
+		public static function __callStatic($name, array $arguments)
 		{
-			if($adapter === null) {
-				$adapter = self::$_adapter;
+			if(substr($name, 0, 3) === 'get')
+			{
+				$name = substr($name, 3);
+				$name = mb_strtolower($name);
+
+				switch($name)
+				{
+					case 'service': {
+						return static::_getService();
+					}
+					case 'adapter': {
+						return static::_getAdapter();
+					}
+				}
 			}
 
-			$id = $adapter->getServerId();
-
-			return (array_key_exists($id, static::$_cache)) ? ((static::$_cache[$id] === true)) : (false);
+			throw new Exception("This method '".$name."' does not exist", E_USER_ERROR);
 		}
 
 		/**
-		  * @param Core\Api\Adapter $adapter
-		  * @return bool
+		  * @return Core\Addon\Orchestrator
 		  */
-		public static function cacheDisabled(Adapter $adapter = null)
-		{
-			if($adapter === null) {
-				$adapter = self::$_adapter;
-			}
-
-			$id = $adapter->getServerId();
-
-			return (array_key_exists($id, static::$_cache)) ? ((static::$_cache[$id] === false)) : (false);
-		}
+		abstract protected static function _getOrchestrator();
 
 		/**
-		  * @param Core\Api\Adapter $adapter
-		  * @return bool
+		  * @return Core\Addon\Service
 		  */
-		public static function refreshCache(Adapter $adapter = null)
+		protected static function _getService()
 		{
-			if(static::cacheEnabled($adapter)) {
-				static::_cacheCleaner($adapter);
-				return static::_setObjects($adapter);
+			$service = static::_getOrchestrator()->service;
+
+			if($service instanceof Service)
+			{
+				$isReady = $service->initialization();
+
+				if($isReady) {
+					return $service;
+				}
+				else {
+					throw new Exception("Addon service is not ready", E_USER_ERROR);
+				}
 			}
 			else {
-				return false;
+				throw new Exception("Addon service is not available", E_USER_ERROR);
 			}
 		}
 
 		/**
-		  * @param Core\Api\Adapter $adapter
-		  * @return void
+		  * @return Core\Addon\Service
 		  */
-		protected static function _cacheCleaner(Adapter $adapter = null)
+		protected static function _getAdapter()
 		{
-			if($adapter === null) {
-				$adapter = self::$_adapter;
-			}
-
-			$id = $adapter->getServerId();
-			static::$_objects[$id] = array();
+			$service = static::_getService();
+			return $service->adapter;
 		}
 
 		/**
-		  * @param Core\Api\Adapter $adapter
-		  * @return array
+		  * @param string $type
+		  * @param Core\Addon\Adapter $adapter
+		  * @return false|array
 		  */
-		protected static function _getObjects(Adapter $adapter = null)
+		protected function _getThisCache($type, Adapter $adapter = null)
 		{
-			if($adapter === null) {
-				$adapter = self::$_adapter;
+			if($adapter !== null) {
+				$service = $adapter->service;
+			}
+			else {
+				$service = $this->_service;
 			}
 
-			$id = $adapter->getServerId();
-
-			if(!array_key_exists($id, static::$_objects)) {
-				static::_setObjects($adapter);
-			}
-
-			return static::$_objects[$id];
+			return static::_getServiceCache($service, $type);
 		}
 
 		/**
-		  * @param Core\Api\Adapter $adapter
-		  * @return bool
+		  * @param string $type
+		  * @param Core\Addon\Adapter $adapter
+		  * @return false|array
 		  */
-		protected static function _setObjects(Adapter $adapter = null)
+		protected static function _getSelfCache($type, Adapter $adapter = null)
 		{
-			if($adapter === null) {
-				$adapter = self::$_adapter;
+			if($adapter !== null) {
+				$service = $adapter->service;
+			}
+			else {
+				$service = static::_getService();
 			}
 
-			$id = $adapter->getServerId();
+			return static::_getServiceCache($service, $type);
+		}
 
-			static::$_objects[$id] = array();
+		/**
+		  * @param Core\Addon\Service $service
+		  * @param string $type
+		  * @return false|array
+		  */
+		protected static function _getServiceCache(Service $service, $type)
+		{
+			$cache = $service->cache;
+
+			if($cache !== false && $cache->isEnabled())
+			{
+				$container = $cache->getContainer($type);
+
+				if($container !== false) {
+					return $container->getAll();
+				}
+			}
+
 			return false;
 		}
 	}

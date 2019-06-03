@@ -9,33 +9,25 @@
 		protected static $_itemClassName = 'Item';
 
 		/**
-		  * @var Core\Config
-		  */
-		protected $_CONFIG = null;
-
-		/**
 		  * @var array
 		  */
 		protected $_datas = array();
 
 
-		public function __construct(Config $config, $service, $objects)
+		public function __construct(MyArrayObject $objects)
 		{
-			$this->_CONFIG = $config;
-
-			$configObject = $this->_CONFIG->{$service}->{$objects};
-			$this->_format($configObject);
+			$this->_format($objects);
 		}
 
-		protected function _format(MyArrayObject $config)
+		protected function _format(MyArrayObject $objects)
 		{
-			foreach($config as $name => $data)
+			foreach($objects as $name => $object)
 			{
-				if(is_object($data)) {
-					$this->_datas[$name] = new static::$_itemClassName($name, $data);
+				if(is_object($object)) {
+					$this->_datas[$name] = new static::$_itemClassName($name, $object);
 				}
 				else {
-					$this->_datas[$name] = $data;
+					$this->_datas[$name] = $object;
 				}
 			}
 		}

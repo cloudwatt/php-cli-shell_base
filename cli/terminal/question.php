@@ -56,23 +56,29 @@
 				throw new Exception("Multilines question ending regex is required", E_USER_ERROR);
 			}
 
-			$this->_ask($prompt, $multiLines);
-			return $this->_answer($multiLines, $multiLinesEndingRegex);
+			try {
+				$this->_ask($prompt, $multiLines);
+				return $this->_answer($multiLines, $multiLinesEndingRegex);
+			}
+			catch(\Exception $e) {
+				$this->_quit();
+				throw $e;
+			}
 		}
 
 		public function password($prompt, $hideAnswer = '*')
 		{
-			$this->_ask($prompt);
-
 			if(C\Tools::is('string&&!empty', $hideAnswer)) {
 				$this->_hideAnswer = substr($hideAnswer, 0, 1);
 			}
 
 			try {
-				$answer = $this->_answer();
+				$this->_ask($prompt, false);
+				$answer = $this->_answer(false, null);
 			}
 			catch(\Exception $e) {
 				$this->_hideAnswer = null;
+				$this->_quit();
 				throw $e;
 			}
 
@@ -83,7 +89,7 @@
 		protected function _ask($prompt, $multiLines = false)
 		{
 			$this->setShellPrompt($prompt);
-			$this->_start();
+			$this->_open()->_prepare();
 
 			if($multiLines) {
 				echo PHP_EOL;
@@ -94,37 +100,18 @@
 
 		protected function _answer($multiLines = false, $multiLinesEndingRegex = null)
 		{
-			// readline appelé plus d'une fois provoque un segmentation faults
-			/*if(function_exists('readline_callback_handler_install')) {
-				readline_callback_handler_install('', function() {});
-			}*/
-
-			$sttyCommand = 'stty -g';					// -g identique à --save
-			//$sttyCommand = 'stty --save';				// Non dispo sous MacOS
-			exec($sttyCommand, $outputs, $status);
-
-			if(count($outputs) !== 1 || $status !== 0) {
-				throw new Exception("Unable to execute stty command '".$sttyCommand."'", E_USER_ERROR);
-			}
-
-			$sttySettings = current($outputs);
-			shell_exec('stty -icanon -echo min 1 time 0');
-
 			$exit = false;
 			$answer = '';
 			$answers = array();
 
-			$pipes = array(STDIN);
-			stream_set_blocking(STDIN, false);				// Flux non bloquant, temps réel
-
 			while(!$exit)
 			{
-				$r = $pipes;	// copy
-				$n = $this->_streamSelect($r);
+				$pipes = $this->_pipes;	// copy
+				$n = $this->_streamSelect($pipes);
 
 				if($n !== false)
 				{
-					if($n > 0 && in_array(STDIN, $r))
+					if($n > 0 && in_array(STDIN, $pipes))
 					{
 						$input = stream_get_contents(STDIN, -1);
 
@@ -146,28 +133,15 @@
 							{
 								$exit = $this->_exec($answer, $answers, PHP_EOL, $multiLines, $multiLinesEndingRegex);
 
-								if($exit)
-								{
-									// readline appelé plus d'une fois provoque un segmentation faults
-									/*if(function_exists('readline_callback_handler_remove')) {
-										readline_callback_handler_remove();
-									}*/
-
-									shell_exec('stty "'.$sttySettings.'"');
-
-									/**
-									  * Ne pas ferme STDIN directement sinon il ne sera plus disponible pour ce processus PHP
-									  * stream_select ( array &$read ...) $read est modifié par stream_select
-									  *
-									  * Si on souhaite fermer, utiliser php://stdin
-									  */
-									//fclose($r[0]);
+								if($exit) {
+									$this->_cleaner()->_quit();
 								}
 							}
 						}
 					}
 				}
 				else {
+					$this->_cleaner()->_quit();
 					return false;
 				}
 			}

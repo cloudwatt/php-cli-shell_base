@@ -186,7 +186,7 @@
 			try {
 				$status = $this->_prepare($args);
 			}
-			catch(Exception $e) {
+			catch(\Exception $e) {
 				if($this->_debug) { throw $e; }
 				$status = false;
 			}
@@ -487,7 +487,12 @@
 						try {
 							$setupStatus = $this->_setupAllArguments($defArg, $argKey, $userArg, $filteredArgs, $availableArgs, $autoCompletionMode, $acWithOption, false);
 						}
-						catch(Exception $e) {
+						catch(\Exception $e)
+						{
+							if($this->_debug) {
+								throw $e;
+							}
+
 							$status = false;
 							break;
 						}
@@ -619,7 +624,12 @@
 						try {
 							$setupStatus = $this->_setupAllArguments($defArg, $keyArg, $userArg, $filteredArgs, $availableArgs, $autoCompletionMode, $acWithOption, true);
 						}
-						catch(Exception $e) {
+						catch(\Exception $e)
+						{
+							if($this->_debug) {
+								throw $e;
+							}
+
 							$status = false;
 							break;
 						}
@@ -836,7 +846,7 @@
 						  *
 						  * Exemple:
 						  * 'cdautocomplete en'
-						  * 'export configuration junos'
+						  * 'export configuration juniper_junos'
 						  */
 						if(in_array(mb_strtolower($userArg), array_map('mb_strtolower', $results), true)) {
 							return (isset($status)) ? ($status) : (true);			// On continue le traitement car l'argument est présent dans les résultats
@@ -948,6 +958,7 @@
 						}
 					}
 				}
+				unset($argument);
 
 				$arguments = implode(' ', $arguments);
 

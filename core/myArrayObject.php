@@ -173,7 +173,6 @@
 		public function __isset($name)
 		{
 			return $this->key_exists($name);
-			//return array_key_exists($name, $this->_array);
 		}
 
 		public function __unset($name)
@@ -187,7 +186,7 @@
 				return $this->_format($this->_array[$name]);
 			}
 			else {
-				throw new Exception("This attribute ".$name." does not exist", E_USER_ERROR);
+				throw new Exception("Attribute '".$name."' does not exist", E_USER_ERROR);
 			}
 		}
 
