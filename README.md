@@ -32,13 +32,14 @@ You have to add this configuration in your php.ini:
 ```ini
 pcre.jit=0
 ```
+*To locate your php.ini, use this command: php -i | grep "Configuration File"*
 
 For more information about PCRE configuration:
 - https://php.net/manual/en/pcre.configuration.php#ini.pcre.jit
 
 #### REPOSITORY
 * git clone https://github.com/cloudwatt/php-cli-shell_base
-* git checkout tags/v2.1
+* git checkout tags/v2.1.1
 
 #### ADDON / APPLICATION
 *Be careful, you have to install the same version of the addon or application as base version*  
