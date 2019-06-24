@@ -1,6 +1,7 @@
 <?php
 	namespace Core;
 
+	use Phar;
 	use ArrayObject;
 
 	class Tools
@@ -75,6 +76,13 @@
 			{
 				$results = array();
 
+				/**
+				  * /!\ Doit être compatible avec les tableaux et les objets
+				  * Ne pas utiliser array_filter qui n'accepte que les array
+				  *
+				  * Permet de garder l'ordre de $fields à la différence de array_intersect_key
+				  * array_intersect_key n'accepte que les tableaux et non les objets comme array_filter
+				  */
 				array_walk($items, function($item) use(&$results, $fields)
 				{
 					if((is_array($item) || $item instanceof \ArrayAccess))
@@ -739,56 +747,73 @@
 		  */
 		public static function filename($filename, $rootDir = true, $touch = false)
 		{
-			$firstChar = substr($filename, 0, 1);
-				
-			if($firstChar === '~')
-			{	
-				if(($home = self::getHomePathname()) !== false) {
-					$filename = str_replace('~', $home, $filename);
-				}
-			}
-			elseif($firstChar !== DIRECTORY_SEPARATOR)
+			/**
+			  * Do not process filename based on protocol
+			  *
+			  * http, https, phar, ...
+			  */
+			if(!preg_match('#:\/\/#i', $filename))
 			{
-				if($rootDir === true)
-				{
-					if(defined('ROOT_DIR')) {
-						$filename = ROOT_DIR.DIRECTORY_SEPARATOR.$filename;
+				$firstChar = substr($filename, 0, 1);
+					
+				if($firstChar === '~')
+				{	
+					if(($home = self::getHomePathname()) !== false) {
+						$filename = str_replace('~', $home, $filename);
 					}
 				}
-				elseif($rootDir === false)
+				elseif($firstChar !== DIRECTORY_SEPARATOR)
 				{
-					if(($cwd = self::getWorkingPathname()) !== false) {
-						$filename = $cwd.DIRECTORY_SEPARATOR.$filename;
+					if($rootDir === true)
+					{
+						if(defined('ROOT_DIR')) {
+							$filename = ROOT_DIR.DIRECTORY_SEPARATOR.$filename;
+						}
+					}
+					elseif($rootDir === false)
+					{
+						if(($cwd = self::getWorkingPathname()) !== false) {
+							$filename = $cwd.DIRECTORY_SEPARATOR.$filename;
+						}
+					}
+					elseif(self::is('string&&!empty', $rootDir)) {
+						$filename = $rootDir.DIRECTORY_SEPARATOR.$filename;
 					}
 				}
-				elseif(self::is('string&&!empty', $rootDir)) {
-					$filename = $rootDir.DIRECTORY_SEPARATOR.$filename;
+
+				// realpath() returns FALSE on failure, e.g. if the file does not exist.
+				// The running script must have executable permissions on all directories in the hierarchy, otherwise realpath() will return FALSE.
+
+				$filenameParts = explode('..', $filename);
+
+				for($i=0; $i<(count($filenameParts)-1); $i++) {
+					$filenameParts[$i] = dirname($filenameParts[$i]);
 				}
-			}
 
-			// realpath() returns FALSE on failure, e.g. if the file does not exist.
-			// The running script must have executable permissions on all directories in the hierarchy, otherwise realpath() will return FALSE.
+				$filename = implode(DIRECTORY_SEPARATOR, $filenameParts);
+				$filename = preg_replace('#(/+\./+)|(/+\.)|(\./+)|(^\.$)|(/+)#i', '/', $filename);
+				return ($filename === DIRECTORY_SEPARATOR) ? (DIRECTORY_SEPARATOR) : (rtrim($filename, DIRECTORY_SEPARATOR));		// A l'identique de realpath
 
-			$filenameParts = explode('..', $filename);
+				/*if(($status = file_exists($filename)) === false && $touch)
+				{
+					$status = mkdir(dirname($filename), 0777, true);
 
-			for($i=0; $i<(count($filenameParts)-1); $i++) {
-				$filenameParts[$i] = dirname($filenameParts[$i]);
-			}
-
-			$filename = implode(DIRECTORY_SEPARATOR, $filenameParts);
-			$filename = preg_replace('#(/+\./+)|(/+\.)|(\./+)|(^\.$)|(/+)#i', '/', $filename);
-			return ($filename === DIRECTORY_SEPARATOR) ? (DIRECTORY_SEPARATOR) : (rtrim($filename, DIRECTORY_SEPARATOR));		// A l'identique de realpath
-
-			/*if(($status = file_exists($filename)) === false && $touch)
-			{
-				$status = mkdir(dirname($filename), 0777, true);
-
-				if($status) {
-					$status = touch($filename);
+					if($status) {
+						$status = touch($filename);
+					}
 				}
-			}
 
-			return ($status) ? (realpath($filename)) : (false);*/
+				return ($status) ? (realpath($filename)) : (false);*/
+			}
+			else {
+				/**
+				  * A l'identique de realpath
+				  *
+				  * Permet de supprimer le / de fin
+				  * Ne sert pas pour les PHAR mais utile pour HTTP
+				  */
+				return rtrim($filename, DIRECTORY_SEPARATOR);
+			}
 		}
 
 		public static function pathname($pathname, $useRootDir = true, $mkdir = true)
@@ -863,5 +888,10 @@
 			for($i=0; $i<$bufferLevel; $i++) {
 				ob_end_clean();
 			}
+		}
+
+		public static function isPharRunning()
+		{
+			return (Phar::running() !== '');
 		}
 	}

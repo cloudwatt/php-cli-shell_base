@@ -7,6 +7,11 @@
 
 	abstract class Main
 	{
+		/**
+		  * Use same version as Composer configuration
+		  *
+		  * @var string
+		  */
 		const PHP_MIN_VERSION = '7.1.0';
 
 		/**
@@ -15,45 +20,73 @@
 		protected $_CONFIG;
 
 		/**
-		  * @var bool
+		  * @var bool|int
 		  */
 		protected $_debug = false;
 
 		/**
-		  * @var bool
+		  * @var bool|int
 		  */
 		protected $_addonDebug = false;
 
 		/**
-		  * @var bool
+		  * @var bool|int
 		  */
 		protected $_applicationDebug = false;
 
 
-		public function __construct($configFilename)
+		/**
+		  * @param string|array|Core\Config $configuration
+		  * @return $this
+		  */
+		public function __construct($configuration)
 		{
 			set_error_handler(array(static::class, 'errorHandler'));
 
-			if(version_compare(PHP_VERSION, self::PHP_MIN_VERSION) === -1) {
+			if(!C\Tools::isPharRunning() && version_compare(PHP_VERSION, self::PHP_MIN_VERSION) === -1) {
 				throw new Exception("Version PHP inférieure à ".self::PHP_MIN_VERSION.", PHP ".self::PHP_MIN_VERSION." min requis", E_USER_ERROR);
 			}
 
 			$this->_initDebug();
 
-			$this->_CONFIG = C\Config::getInstance();
-			$this->_CONFIG->loadConfigurations($configFilename, false);
+			if($configuration instanceof C\Config) {
+				$this->_CONFIG = $configuration;
+			}
+			else {
+				$this->_CONFIG = C\Config::getInstance();
+				$this->_CONFIG->loadConfigurations($configuration, false);
+			}
 		}
 
 		protected function _initDebug()
 		{
 			$debug = getenv('PHPCLI_DEBUG');
-			$this->_debug = (mb_strtolower($debug) === "true" || $debug === 1);
+			$this->_setDebug($this->_debug, $debug);
 
 			$debug = getenv('PHPCLI_ADDON_DEBUG');
-			$this->_addonDebug = (mb_strtolower($debug) === "true" || $debug === 1);
+			$this->_setDebug($this->_addonDebug, $debug);
 
 			$debug = getenv('PHPCLI_APPLICATION_DEBUG');
-			$this->_applicationDebug = (mb_strtolower($debug) === "true" || $debug === 1);
+			$this->_setDebug($this->_applicationDebug, $debug);
+		}
+
+		protected function _setDebug(&$attribute, $debug)
+		{
+			switch(mb_strtolower($debug))
+			{
+				case 'on':
+				case 'yes':
+				case 'true': {
+					$attribute = true;
+					break;
+				}
+				default:
+				{
+					if(C\Tools::is('int&&>0', $debug)) {
+						$attribute = (int) $debug;
+					}
+				}
+			}
 		}
 
 		protected function _throwException(Exception $exception)

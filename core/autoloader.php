@@ -3,6 +3,8 @@
 
 	class Autoloader
 	{
+		const PHP_FILE_EXT = '.php';
+
 		protected static $_replacements = array();
 
 
@@ -48,8 +50,10 @@
 
 		protected static function _load($class)
 		{
-			if(file_exists($class.'.php')) {
-				require_once($class.'.php');
+			$class .= static::PHP_FILE_EXT;
+
+			if(file_exists($class)) {
+				require_once($class);
 			}
 		}
 	}

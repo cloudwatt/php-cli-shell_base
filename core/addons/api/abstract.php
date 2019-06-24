@@ -10,12 +10,12 @@
 		const WILDCARD = '*';
 
 		/**
-		  * @var Core\Addon\Service
+		  * @var Service
 		  */
 		protected $_service = null;
 
 		/**
-		  * @var Core\Addon\Adapter
+		  * @var Adapter
 		  */
 		protected $_adapter = null;
 
@@ -47,8 +47,8 @@
 
 		/**
 		  * @param mixed $objectId
-		  * @param Addon\Service $service
-		  * @return Addon\Api_Abstract
+		  * @param Service $service
+		  * @return Api_Abstract
 		  */
 		public function __construct($objectId = null, Service $service = null)
 		{
@@ -446,12 +446,12 @@
 		}
 
 		/**
-		  * @return Core\Addon\Orchestrator
+		  * @return Orchestrator
 		  */
 		abstract protected static function _getOrchestrator();
 
 		/**
-		  * @return Core\Addon\Service
+		  * @return Service
 		  */
 		protected static function _getService()
 		{
@@ -474,7 +474,7 @@
 		}
 
 		/**
-		  * @return Core\Addon\Service
+		  * @return Adapter
 		  */
 		protected static function _getAdapter()
 		{
@@ -484,7 +484,7 @@
 
 		/**
 		  * @param string $type
-		  * @param Core\Addon\Adapter $adapter
+		  * @param Adapter $adapter
 		  * @return false|array
 		  */
 		protected function _getThisCache($type, Adapter $adapter = null)
@@ -501,7 +501,7 @@
 
 		/**
 		  * @param string $type
-		  * @param Core\Addon\Adapter $adapter
+		  * @param Adapter $adapter
 		  * @return false|array
 		  */
 		protected static function _getSelfCache($type, Adapter $adapter = null)
@@ -517,7 +517,7 @@
 		}
 
 		/**
-		  * @param Core\Addon\Service $service
+		  * @param Service $service
 		  * @param string $type
 		  * @return false|array
 		  */

@@ -5,11 +5,29 @@
 
     class Soap
     {
+		/**
+		  * @var string Service name
+		  */
         protected $_service;
-        protected $_server;
-        protected $_options;
-        protected $_handle;
 
+		/**
+		  * @var string Service address
+		  */
+        protected $_server;
+
+		/**
+		  * @var array
+		  */
+        protected $_options = array();
+
+		/**
+		  * @var SoapClient
+		  */
+        protected $_handle = null;
+
+		/**
+		  * @var bool
+		  */
         protected $_debug = false;
 
 
@@ -30,19 +48,27 @@
 
         public function enableTrace()
         {
-            $this->_options['trace'] = 1;
+            $this->_options['trace'] = true;
             return $this;
         }
 
         public function disableTrace()
         {
-            $this->_options['trace'] = 0;
+            $this->_options['trace'] = false;
             return $this;
         }
 
         public function resetOpts()
 		{
-			$this->_options = array('trace' => 1);
+			$this->_options = array(
+				'trace' => true,
+				'exceptions' => true,
+				'keep_alive' => true,
+				//'connection_timeout' => 5000,
+				'cache_wsdl' => WSDL_CACHE_NONE,
+				'compression' => SOAP_COMPRESSION_ACCEPT | SOAP_COMPRESSION_GZIP | SOAP_COMPRESSION_DEFLATE
+			);
+
 			return $this;
 		}
 
@@ -86,8 +112,22 @@
         {
             $status = $this->start();
 
-            if($status) {
-                return call_user_func_array(array($this->_handle, $name), $arguments);
+            if($status)
+			{
+				try {
+					return call_user_func_array(array($this->_handle, $name), $arguments);
+				}
+				catch(SoapFault $e)
+				{
+					// Uncaught SoapFault exception: [HTTP] Error Fetching http headers
+					if(preg_match('#\[HTTP\] Error#i', $e->getMessage())) {
+						sleep(1);
+						return call_user_func_array(array($this->_handle, $name), $arguments);
+					}
+					else {
+						throw $e;
+					}
+				}
             }
             else {
                 throw new Exception("It is not possible to execute SOAP call for ".$this->_service." service", E_USER_ERROR);

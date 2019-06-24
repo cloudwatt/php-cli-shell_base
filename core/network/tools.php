@@ -201,13 +201,24 @@
 			return (defined('AF_INET6')) ? (inet_ntop($ip)) : (false);
 		}
 
-		public static function cidrMaskToNetMask($cidrMask)
+		/**
+		  * @param int $cidrMask
+		  * @param null|int $IPv IP version 4 or 6 (magic parameter, allow null to best IP version detection)
+		  * @return false|null|string Return false if error occured, null if IPv6 detected else return net mask
+		  */
+		public static function cidrMaskToNetMask($cidrMask, $IPv = null)
 		{
-			if($cidrMask >= 0 && $cidrMask <= 32) {
-				return long2ip(-1 << (32 - (int) $cidrMask));
+			if($IPv !== 6)
+			{
+				if($cidrMask >= 0 && $cidrMask <= 32) {
+					return long2ip(-1 << (32 - (int) $cidrMask));
+				}
+				else {
+					return false;
+				}
 			}
 			else {
-				return false;
+				return null;
 			}
 		}
 

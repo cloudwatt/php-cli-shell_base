@@ -39,7 +39,7 @@ For more information about PCRE configuration:
 
 #### REPOSITORY
 * git clone https://github.com/cloudwatt/php-cli-shell_base
-* git checkout tags/v2.1.1
+* git checkout tags/v2.1.2
 
 #### ADDON / APPLICATION
 *Be careful, you have to install the same version of the addon or application as base version*  

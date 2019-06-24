@@ -99,7 +99,11 @@
 		protected $_terminalDebug = false;
 
 
-		public function __construct($configFilename)
+		/**
+		  * @param string|array|Core\Config $configuration
+		  * @return $this
+		  */
+		public function __construct($configuration)
 		{
 			/**
 			  * Tant que l'on ne connait pas le mode on bufferise
@@ -118,7 +122,7 @@
 				echo "\033[1A";
 			}
 
-			parent::__construct($configFilename);
+			parent::__construct($configuration);
 
 			$this->_TERMINAL = new Terminal\Terminal($this->_commands, $this->_inlineArgCmds, $this->_outlineArgCmds, $this->_manCommands);
 			$this->_TERMINAL->debug($this->_terminalDebug)->setHistoryFilename(static::SHELL_HISTORY_FILENAME);
@@ -300,7 +304,7 @@
 		{
 			if($goodbyeMessage) {
 				$this->EOL();
-				$this->print("Merci d'avoir utilisé TOOLS-CLI by NOC", 'blue', false, 'italic');
+				$this->print("Merci d'avoir utilisé PHPCLI by Orange / Cloudwatt", 'blue', false, 'italic');
 				$this->EOL();
 			}
 		}
