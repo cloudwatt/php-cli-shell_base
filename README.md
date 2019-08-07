@@ -1,6 +1,6 @@
 # PHP-CLI SHELL
 
-__New release will be only available on (here)[https://github.com/Renji-FR/PhpCliShell]__
+__New release will be only available on https://github.com/Renji-FR/PhpCliShell__
 
 This repository is the base of PHP Shell project. It contains base classes for create a PHP Shell.  
 You must have a service which has an API and develop classes to use PHP-CLI Shell and your API.  
